@@ -3,7 +3,7 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
-const { pickQuestions } = require('./questions');
+const { CATEGORIES, pickQuestions } = require('./questions');
 
 const app = express();
 const server = http.createServer(app);
@@ -54,6 +54,7 @@ function lobbyState(room) {
     hostId: room.hostId,
     minPlayers: MIN_PLAYERS,
     maxPlayers: MAX_PLAYERS,
+    categories: CATEGORIES,
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -80,18 +81,19 @@ function scoreboard(room) {
 
 // ---------- Quiz flow ----------
 
-function startGame(room) {
+function startGame(room, cats) {
   room.state = 'playing';
   room.players.forEach((p) => (p.score = 0));
+  const questions = pickQuestions(QUESTIONS_PER_GAME, cats);
   room.game = {
-    questions: pickQuestions(QUESTIONS_PER_GAME),
+    questions,
     qIndex: -1,
     phase: 'question',
     endsAt: 0,
     answers: new Map(),
     timer: null,
   };
-  io.to(room.code).emit('gameStarted', { total: QUESTIONS_PER_GAME });
+  io.to(room.code).emit('gameStarted', { total: questions.length });
   nextQuestion(room);
 }
 
@@ -224,7 +226,7 @@ io.on('connection', (socket) => {
     broadcastLobby(room);
   });
 
-  socket.on('startGame', (_payload, cb) => {
+  socket.on('startGame', ({ categories } = {}, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return cb && cb({ ok: false, error: 'Room no longer exists' });
     if (socket.id !== room.hostId)
@@ -234,8 +236,12 @@ io.on('connection', (socket) => {
     if (room.players.length < MIN_PLAYERS)
       return cb && cb({ ok: false, error: `Need at least ${MIN_PLAYERS} players` });
 
+    const cats = Array.isArray(categories)
+      ? categories.filter((c) => typeof c === 'string')
+      : null;
+
     if (cb) cb({ ok: true });
-    startGame(room);
+    startGame(room, cats);
   });
 
   socket.on('answer', ({ index, choice } = {}, cb) => {

@@ -8,6 +8,7 @@ accounts, no installs.
 
 - Host creates a room → a **4-letter code** and a **QR code** appear.
 - Others scan the QR (or type the code) and pick a name — they land straight in the lobby.
+- Host picks one or more **categories** (Science & Nature, Geography, Movies, Music, General Knowledge) in the lobby. Questions are drawn only from the selected categories.
 - Host starts once **2–4** players are in.
 - **5 questions**, **30 seconds** each, **2 points** per correct answer.
 - The clock is server-timed, so every device counts down together. If everyone
@@ -39,7 +40,7 @@ on the same Wi-Fi. (`localhost` only works on the host's own machine.)
 ## Project layout
 
 - `server.js` — Express + Socket.IO. Rooms, lobby, and the quiz state machine (question → reveal → next → results).
-- `questions.js` — the question bank; each game pulls 5 at random.
+- `questions.js` — the question bank grouped by category; each game pulls 5 at random from the host's selected categories.
 - `public/` — the single-page client (`index.html`, `style.css`, `app.js`).
 
 ## Tuning

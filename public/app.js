@@ -30,6 +30,7 @@
     endsAt: 0,
     picked: null, // index I tapped, or null
     tick: null, // interval handle for the countdown
+    selectedCats: null, // Set of category names the host has chosen
   };
 
   // --- read ?room=CODE from the QR/link ---
@@ -118,7 +119,8 @@
   // ============ LOBBY ============
   $("btn-start").addEventListener("click", () => {
     $("lobby-error").textContent = "";
-    socket.emit("startGame", null, (res) => {
+    const categories = state.selectedCats ? Array.from(state.selectedCats) : [];
+    socket.emit("startGame", { categories }, (res) => {
       if (res && !res.ok) $("lobby-error").textContent = res.error || "Could not start.";
     });
   });
@@ -194,6 +196,46 @@
       waiting.classList.remove("hidden");
     }
     $("qr-wrap").classList.toggle("hidden", !amHost || !state.joinUrl);
+
+    // Only the host chooses categories.
+    if (amHost && Array.isArray(room.categories) && room.categories.length) {
+      renderCategories(room.categories);
+      $("cat-card").classList.remove("hidden");
+    } else {
+      $("cat-card").classList.add("hidden");
+    }
+  }
+
+  function renderCategories(cats) {
+    // Default to all categories selected the first time we see them.
+    if (!state.selectedCats) {
+      state.selectedCats = new Set(cats.map((c) => c.name));
+    }
+    const list = $("cat-list");
+    list.innerHTML = "";
+    cats.forEach((c) => {
+      const on = state.selectedCats.has(c.name);
+      const chip = document.createElement("button");
+      chip.className = "chip" + (on ? " on" : "");
+      const name = document.createElement("span");
+      name.className = "chip-name";
+      name.textContent = c.name;
+      const count = document.createElement("span");
+      count.className = "chip-count";
+      count.textContent = c.count;
+      chip.append(name, count);
+      chip.addEventListener("click", () => {
+        if (state.selectedCats.has(c.name)) {
+          if (state.selectedCats.size === 1) return; // keep at least one on
+          state.selectedCats.delete(c.name);
+        } else {
+          state.selectedCats.add(c.name);
+        }
+        renderCategories(cats);
+      });
+      list.append(chip);
+    });
+    $("cat-count").textContent = state.selectedCats.size + " / " + cats.length;
   }
 
   // ============ QUIZ ============
