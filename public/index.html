@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>Quiz Up</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- HOME -->
+      <section id="screen-home" class="screen active">
+        <div class="brand">
+          <div class="moon">🧠</div>
+          <h1>Quiz Up</h1>
+          <p class="tagline">
+            Scan, name yourself, play. 2–4 players, no sign-up.
+          </p>
+        </div>
+
+        <div class="card">
+          <button id="btn-create" class="btn primary">Create a room</button>
+          <div class="divider"><span>or join one</span></div>
+          <div class="join-row">
+            <input
+              id="input-code"
+              class="input code-input"
+              placeholder="CODE"
+              maxlength="4"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+            />
+            <button id="btn-join" class="btn">Join</button>
+          </div>
+          <p id="home-error" class="error"></p>
+        </div>
+      </section>
+
+      <!-- NAME -->
+      <section id="screen-name" class="screen">
+        <div class="card">
+          <h2 id="name-title">What's your name?</h2>
+          <p id="name-sub" class="muted"></p>
+          <input
+            id="input-name"
+            class="input"
+            placeholder="e.g. Alex"
+            maxlength="20"
+            autocomplete="off"
+          />
+          <button id="btn-name-go" class="btn primary">Continue</button>
+          <p id="name-error" class="error"></p>
+          <button id="btn-name-back" class="btn ghost">Back</button>
+        </div>
+      </section>
+
+      <!-- LOBBY -->
+      <section id="screen-lobby" class="screen">
+        <div class="lobby-head">
+          <span class="muted">Room code</span>
+          <div id="lobby-code" class="room-code">----</div>
+        </div>
+
+        <div id="qr-wrap" class="card qr-card hidden">
+          <img id="qr-img" alt="Scan to join" />
+          <p class="muted small">Others scan this to join instantly</p>
+          <button id="btn-copy" class="btn ghost small">Copy join link</button>
+        </div>
+
+        <div class="card">
+          <div class="players-head">
+            <h2>Players</h2>
+            <span id="player-count" class="pill">0</span>
+          </div>
+          <ul id="player-list" class="players"></ul>
+        </div>
+
+        <div class="lobby-actions">
+          <button id="btn-start" class="btn primary hidden">Start game</button>
+          <p id="waiting-note" class="muted center hidden">
+            Waiting for the host to start…
+          </p>
+          <p id="lobby-error" class="error"></p>
+          <button id="btn-leave" class="btn ghost small">Leave room</button>
+        </div>
+      </section>
+
+      <!-- QUESTION -->
+      <section id="screen-question" class="screen">
+        <div class="q-topbar">
+          <span id="q-progress" class="pill">Q1 / 5</span>
+          <span id="q-timer" class="timer">30</span>
+        </div>
+        <div class="timerbar"><div id="timerbar-fill" class="timerbar-fill"></div></div>
+
+        <div class="card q-card">
+          <h2 id="q-text" class="q-text"></h2>
+        </div>
+
+        <div id="q-options" class="options"></div>
+
+        <p id="q-status" class="muted center small"></p>
+      </section>
+
+      <!-- REVEAL -->
+      <section id="screen-reveal" class="screen">
+        <div class="card center reveal-card">
+          <div id="reveal-icon" class="reveal-icon">✅</div>
+          <h2 id="reveal-headline">Correct!</h2>
+          <p id="reveal-correct" class="muted"></p>
+          <p id="reveal-explain" class="explain"></p>
+        </div>
+        <div class="card">
+          <h2>Scores</h2>
+          <ul id="reveal-board" class="board"></ul>
+        </div>
+        <p id="reveal-next" class="muted center small"></p>
+      </section>
+
+      <!-- RESULTS -->
+      <section id="screen-results" class="screen">
+        <div class="card center">
+          <div class="moon">🏆</div>
+          <h2 id="results-headline">Winner</h2>
+          <p id="results-sub" class="muted"></p>
+        </div>
+        <div class="card">
+          <h2>Final scores</h2>
+          <ul id="results-board" class="board"></ul>
+        </div>
+        <div class="lobby-actions">
+          <button id="btn-again" class="btn primary hidden">Play again</button>
+          <p id="results-waiting" class="muted center hidden">
+            Waiting for the host to start a new round…
+          </p>
+          <button id="btn-results-leave" class="btn ghost small">Leave</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

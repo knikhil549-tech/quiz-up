@@ -1,0 +1,18 @@
+{
+  "name": "party-game",
+  "version": "0.1.0",
+  "description": "Quiz Up: a no-signup, scan-to-play 2-4 player quiz game.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.7.5"
+  }
+}

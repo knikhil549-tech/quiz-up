@@ -1,0 +1,12 @@
+# Render Blueprint. On render.com: New > Blueprint, point it at this repo,
+# and it reads everything below automatically.
+services:
+  - type: web
+    name: quiz-up
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
