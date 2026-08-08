@@ -312,6 +312,186 @@ const BANK = [
     correct: 1,
     explanation: 'A cheetah can sprint at roughly 100 km/h.',
   },
+
+  // --- Movies ---
+  {
+    q: 'Which 1997 film features the sinking of a famous ocean liner?',
+    options: ['Titanic', 'The Poseidon Adventure', 'Pearl Harbor', 'Life of Pi'],
+    correct: 0,
+    explanation: 'James Cameron’s Titanic won 11 Academy Awards.',
+  },
+  {
+    q: 'Who directed the 1993 film "Jurassic Park"?',
+    options: ['James Cameron', 'Steven Spielberg', 'George Lucas', 'Ridley Scott'],
+    correct: 1,
+    explanation: 'Steven Spielberg directed Jurassic Park.',
+  },
+  {
+    q: 'In "The Lion King", what is the name of the young cub who becomes king?',
+    options: ['Mufasa', 'Scar', 'Simba', 'Nala'],
+    correct: 2,
+    explanation: 'Simba is the young lion at the heart of the story.',
+  },
+  {
+    q: 'Which film series features the pirate Jack Sparrow?',
+    options: ['Pirates of the Caribbean', 'Treasure Island', 'Master and Commander', 'The Goonies'],
+    correct: 0,
+    explanation: 'Jack Sparrow is played by Johnny Depp in Pirates of the Caribbean.',
+  },
+  {
+    q: 'What is the name of the wizarding school in the Harry Potter films?',
+    options: ['Beauxbatons', 'Hogwarts', 'Durmstrang', 'Ilvermorny'],
+    correct: 1,
+    explanation: 'Hogwarts School of Witchcraft and Wizardry.',
+  },
+  {
+    q: 'Which animated film follows a clownfish searching for his son?',
+    options: ['Shark Tale', 'Finding Nemo', 'The Little Mermaid', 'Moana'],
+    correct: 1,
+    explanation: 'Marlin searches for Nemo in Finding Nemo.',
+  },
+  {
+    q: 'Who played Iron Man in the Marvel Cinematic Universe?',
+    options: ['Chris Evans', 'Chris Hemsworth', 'Robert Downey Jr.', 'Mark Ruffalo'],
+    correct: 2,
+    explanation: 'Robert Downey Jr. played Tony Stark / Iron Man.',
+  },
+  {
+    q: 'In which film would you hear the line "May the Force be with you"?',
+    options: ['Star Trek', 'Star Wars', 'Guardians of the Galaxy', 'Dune'],
+    correct: 1,
+    explanation: 'It is the iconic farewell from Star Wars.',
+  },
+  {
+    q: 'Which film features a giant ape climbing the Empire State Building?',
+    options: ['Godzilla', 'King Kong', 'Rampage', 'Mighty Joe Young'],
+    correct: 1,
+    explanation: 'King Kong famously scales the skyscraper.',
+  },
+  {
+    q: 'In "The Matrix", which colour pill does Neo take?',
+    options: ['Blue', 'Green', 'Red', 'Yellow'],
+    correct: 2,
+    explanation: 'The red pill reveals the truth of the Matrix.',
+  },
+
+  // --- Music ---
+  {
+    q: 'Which band released the album "Abbey Road"?',
+    options: ['The Rolling Stones', 'The Beatles', 'Queen', 'Pink Floyd'],
+    correct: 1,
+    explanation: 'Abbey Road was released by The Beatles in 1969.',
+  },
+  {
+    q: 'Who is widely known as the "King of Pop"?',
+    options: ['Elvis Presley', 'Michael Jackson', 'Prince', 'Freddie Mercury'],
+    correct: 1,
+    explanation: 'Michael Jackson earned the title King of Pop.',
+  },
+  {
+    q: 'How many strings does a standard violin have?',
+    options: ['3', '4', '5', '6'],
+    correct: 1,
+    explanation: 'A violin has four strings: G, D, A, and E.',
+  },
+  {
+    q: 'Which instrument is Yo-Yo Ma famous for playing?',
+    options: ['Violin', 'Cello', 'Piano', 'Flute'],
+    correct: 1,
+    explanation: 'Yo-Yo Ma is a world-renowned cellist.',
+  },
+  {
+    q: '"Bohemian Rhapsody" is a song by which band?',
+    options: ['The Who', 'Led Zeppelin', 'Queen', 'The Eagles'],
+    correct: 2,
+    explanation: 'Queen released Bohemian Rhapsody in 1975.',
+  },
+  {
+    q: 'Who sang the hit "Rolling in the Deep"?',
+    options: ['Beyonce', 'Adele', 'Rihanna', 'Taylor Swift'],
+    correct: 1,
+    explanation: 'Adele released it on her album 21.',
+  },
+  {
+    q: 'In music, what does the term "forte" mean?',
+    options: ['Slow', 'Loud', 'Soft', 'Fast'],
+    correct: 1,
+    explanation: 'Forte means to play loudly.',
+  },
+  {
+    q: 'Which of these is a woodwind instrument?',
+    options: ['Trumpet', 'Clarinet', 'Trombone', 'Cello'],
+    correct: 1,
+    explanation: 'The clarinet is a woodwind; the others are brass or string.',
+  },
+
+  // --- World capitals ---
+  {
+    q: 'What is the capital of Canada?',
+    options: ['Toronto', 'Ottawa', 'Vancouver', 'Montreal'],
+    correct: 1,
+    explanation: 'Ottawa is Canada’s capital.',
+  },
+  {
+    q: 'What is the capital of Egypt?',
+    options: ['Alexandria', 'Cairo', 'Giza', 'Luxor'],
+    correct: 1,
+    explanation: 'Cairo is Egypt’s capital and largest city.',
+  },
+  {
+    q: 'What is the capital of Brazil?',
+    options: ['Rio de Janeiro', 'Sao Paulo', 'Brasilia', 'Salvador'],
+    correct: 2,
+    explanation: 'Brasilia was built to be the capital and opened in 1960.',
+  },
+  {
+    q: 'What is the capital of Spain?',
+    options: ['Barcelona', 'Madrid', 'Seville', 'Valencia'],
+    correct: 1,
+    explanation: 'Madrid is Spain’s capital.',
+  },
+  {
+    q: 'What is the capital of Germany?',
+    options: ['Munich', 'Frankfurt', 'Berlin', 'Hamburg'],
+    correct: 2,
+    explanation: 'Berlin is Germany’s capital.',
+  },
+  {
+    q: 'What is the capital of Italy?',
+    options: ['Milan', 'Venice', 'Rome', 'Naples'],
+    correct: 2,
+    explanation: 'Rome is Italy’s capital.',
+  },
+  {
+    q: 'What is the capital of Russia?',
+    options: ['Saint Petersburg', 'Moscow', 'Kazan', 'Sochi'],
+    correct: 1,
+    explanation: 'Moscow is Russia’s capital.',
+  },
+  {
+    q: 'What is the capital of India?',
+    options: ['Mumbai', 'New Delhi', 'Kolkata', 'Chennai'],
+    correct: 1,
+    explanation: 'New Delhi is the capital of India.',
+  },
+  {
+    q: 'What is the capital of South Korea?',
+    options: ['Busan', 'Seoul', 'Incheon', 'Daegu'],
+    correct: 1,
+    explanation: 'Seoul is South Korea’s capital.',
+  },
+  {
+    q: 'What is the capital of Argentina?',
+    options: ['Santiago', 'Buenos Aires', 'Lima', 'Bogota'],
+    correct: 1,
+    explanation: 'Buenos Aires is Argentina’s capital.',
+  },
+  {
+    q: 'What is the capital of Kenya?',
+    options: ['Mombasa', 'Nairobi', 'Kampala', 'Addis Ababa'],
+    correct: 1,
+    explanation: 'Nairobi is Kenya’s capital.',
+  },
 ];
 
 // Fisher-Yates shuffle, then take the first n.
