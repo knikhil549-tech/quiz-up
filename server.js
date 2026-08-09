@@ -4,6 +4,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { CATEGORIES, pickQuestions } = require('./questions');
+const history = require('./history');
 
 const app = express();
 const server = http.createServer(app);
@@ -111,6 +112,7 @@ function nextQuestion(room) {
   g.endsAt = Date.now() + ANSWER_SECONDS * 1000;
 
   const q = g.questions[g.qIndex];
+  history.recordShown(q.q); // remember this question was shown
   io.to(room.code).emit('question', {
     index: g.qIndex,
     total: g.questions.length,

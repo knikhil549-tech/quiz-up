@@ -474,6 +474,16 @@ h2 {
   color: var(--accent);
 }
 
+/* Confetti overlay (shown briefly on a correct answer) */
+.confetti-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
 /* Utility */
 .hidden {
   display: none !important;

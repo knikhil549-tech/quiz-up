@@ -274,6 +274,7 @@
 
   function pickAnswer(choice, btn) {
     if (state.picked !== null) return; // locked in already
+    ensureAudio(); // this tap is our chance to unlock audio for the reveal
     state.picked = choice;
 
     document.querySelectorAll("#q-options .option").forEach((b, i) => {
@@ -314,6 +315,7 @@
       icon.textContent = "✅";
       head.textContent = "Correct! +" + mine.gained;
       head.className = "ok-text";
+      celebrate();
     } else {
       icon.textContent = "❌";
       head.textContent = "Not quite";
@@ -374,6 +376,100 @@
     // The follow-up "lobby" event repaints the list; just switch screens.
     show("lobby");
   });
+
+  // ---- celebration: sound + confetti on a correct answer ----
+  let audioCtx = null;
+  // Browsers only allow audio after a user gesture, so prime it on taps.
+  function ensureAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    } catch (_) {
+      /* audio is a nicety; ignore if unavailable */
+    }
+  }
+
+  function playCorrectSound() {
+    ensureAudio();
+    if (!audioCtx) return;
+    try {
+      // A short rising arpeggio (C-E-G-C).
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      const now = audioCtx.currentTime;
+      notes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const t = now + i * 0.09;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        osc.start(t);
+        osc.stop(t + 0.4);
+      });
+    } catch (_) {
+      /* ignore audio errors */
+    }
+  }
+
+  function dropConfetti() {
+    const canvas = document.createElement("canvas");
+    canvas.className = "confetti-canvas";
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+
+    const colors = ["#5b4cff", "#21a179", "#ffcc00", "#ff5c8a", "#00b3ff"];
+    const parts = Array.from({ length: 130 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -20 * dpr - Math.random() * canvas.height * 0.3,
+      r: (4 + Math.random() * 5) * dpr,
+      c: colors[Math.floor(Math.random() * colors.length)],
+      vx: (-1 + Math.random() * 2) * dpr,
+      vy: (2 + Math.random() * 3.5) * dpr,
+      rot: Math.random() * Math.PI,
+      vr: -0.2 + Math.random() * 0.4,
+    }));
+
+    let start = null;
+    const duration = 1900;
+    function frame(ts) {
+      if (start === null) start = ts;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      parts.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.05 * dpr;
+        p.rot += p.vr;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.c;
+        ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
+        ctx.restore();
+      });
+      if (ts - start < duration) {
+        requestAnimationFrame(frame);
+      } else {
+        canvas.remove();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function celebrate() {
+    playCorrectSound();
+    dropConfetti();
+  }
 
   // ---- countdown timer (client-side, synced to server endsAt) ----
   function startTick() {

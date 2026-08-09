@@ -519,9 +519,11 @@ const CATEGORIES = Object.keys(CATEGORY_QUESTIONS).map((name) => ({
 
 const CATEGORY_NAMES = new Set(CATEGORIES.map((c) => c.name));
 
-// Fisher-Yates shuffle, then take the first n. If `cats` is a non-empty list
-// of valid category names, only those categories are used; otherwise the whole
-// bank is fair game.
+const history = require('./history');
+
+// Pick n questions, preferring the ones shown least often so the bank cycles
+// through before repeating. If `cats` is a non-empty list of valid category
+// names, only those categories are used; otherwise the whole bank is fair game.
 function pickQuestions(n, cats) {
   let pool = BANK;
   if (Array.isArray(cats) && cats.length) {
@@ -531,11 +533,14 @@ function pickQuestions(n, cats) {
       if (filtered.length) pool = filtered;
     }
   }
+  // Shuffle first so questions with the same show-count come out in random
+  // order, then a stable sort by show-count keeps the least-shown at the front.
   const a = pool.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
+  a.sort((x, y) => history.getCount(x.q) - history.getCount(y.q));
   return a.slice(0, Math.min(n, a.length));
 }
 
