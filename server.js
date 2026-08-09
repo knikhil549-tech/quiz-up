@@ -419,6 +419,21 @@ io.on('connection', (socket) => {
     launch(room, categories);
   });
 
+  // Host switches the room to a different game while still in the lobby.
+  socket.on('setGame', ({ gameType } = {}, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room) return cb && cb({ ok: false, error: 'Room no longer exists' });
+    if (socket.id !== room.hostId)
+      return cb && cb({ ok: false, error: 'Only the host can change the game' });
+    if (room.state !== 'lobby')
+      return cb && cb({ ok: false, error: 'You can only change games in the lobby' });
+    if (!GAMES[gameType]) return cb && cb({ ok: false, error: 'Unknown game' });
+
+    room.gameType = gameType;
+    if (cb) cb({ ok: true });
+    broadcastLobby(room);
+  });
+
   // Host restarts the same game after it ends.
   socket.on('rematch', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);

@@ -37,6 +37,12 @@
     wordle: { input: "", lastCount: 0, over: false },
   };
 
+  const GAME_LIST = [
+    { type: "quiz", icon: "🧠", name: "Quiz Up" },
+    { type: "ttt", icon: "⭕", name: "Tic Tac Toe" },
+    { type: "wordle", icon: "🔤", name: "Wordle" },
+  ];
+
   const params = new URLSearchParams(location.search);
   const linkCode = (params.get("room") || "").toUpperCase().trim();
 
@@ -196,22 +202,37 @@
 
     const amHost = room.hostId === state.myId;
     const need = room.minPlayers || 2;
-    const enough = room.players.length >= need;
+    const max = room.maxPlayers || 4;
+    const count = room.players.length;
     const startBtn = $("btn-start");
     const waiting = $("waiting-note");
 
     if (amHost) {
       startBtn.classList.remove("hidden");
-      startBtn.disabled = !enough;
-      startBtn.textContent = enough
-        ? "Start game"
-        : "Need " + (need - room.players.length) + " more…";
+      if (count < need) {
+        startBtn.disabled = true;
+        startBtn.textContent = "Need " + (need - count) + " more…";
+      } else if (count > max) {
+        startBtn.disabled = true;
+        startBtn.textContent = (room.gameName || "This game") + " is " + max + " players max";
+      } else {
+        startBtn.disabled = false;
+        startBtn.textContent = "Start game";
+      }
       waiting.classList.add("hidden");
     } else {
       startBtn.classList.add("hidden");
       waiting.classList.remove("hidden");
     }
     $("qr-wrap").classList.toggle("hidden", !amHost || !state.joinUrl);
+
+    // Host-only game switcher.
+    if (amHost) {
+      renderGameSwitch(room);
+      $("switch-card").classList.remove("hidden");
+    } else {
+      $("switch-card").classList.add("hidden");
+    }
 
     // Categories only apply to the quiz, and only the host chooses.
     if (amHost && room.gameType === "quiz" && Array.isArray(room.categories) && room.categories.length) {
@@ -251,6 +272,28 @@
       list.append(chip);
     });
     $("cat-count").textContent = state.selectedCats.size + " / " + cats.length;
+  }
+
+  function renderGameSwitch(room) {
+    const list = $("switch-list");
+    list.innerHTML = "";
+    GAME_LIST.forEach((g) => {
+      const on = room.gameType === g.type;
+      const btn = document.createElement("button");
+      btn.className = "gs-btn" + (on ? " on" : "");
+      btn.innerHTML =
+        '<span class="gs-icon"></span><span class="gs-name"></span>';
+      btn.querySelector(".gs-icon").textContent = g.icon;
+      btn.querySelector(".gs-name").textContent = g.name;
+      btn.addEventListener("click", () => {
+        if (room.gameType === g.type) return;
+        $("lobby-error").textContent = "";
+        socket.emit("setGame", { gameType: g.type }, (res) => {
+          if (res && !res.ok) $("lobby-error").textContent = res.error || "Could not switch.";
+        });
+      });
+      list.append(btn);
+    });
   }
 
   function hostRematch(errEl) {
