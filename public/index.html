@@ -6,24 +6,48 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
-    <title>Quiz Up</title>
+    <title>Game Night</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <div class="app">
-      <!-- HOME -->
+      <!-- HOME (game launcher) -->
       <section id="screen-home" class="screen active">
         <div class="brand">
-          <div class="moon">🧠</div>
-          <h1>Quiz Up</h1>
-          <p class="tagline">
-            Scan, name yourself, play. 2–4 players, no sign-up.
-          </p>
+          <div class="moon">🎲</div>
+          <h1>Game Night</h1>
+          <p class="tagline">Pick a game. Scan to join. No sign-up.</p>
+        </div>
+
+        <div class="game-cards">
+          <button class="game-card" data-game="quiz">
+            <span class="gc-icon">🧠</span>
+            <span class="gc-body">
+              <span class="gc-name">Quiz Up</span>
+              <span class="gc-desc">Trivia race · 2–4 players</span>
+            </span>
+            <span class="gc-go">›</span>
+          </button>
+          <button class="game-card" data-game="ttt">
+            <span class="gc-icon">⭕</span>
+            <span class="gc-body">
+              <span class="gc-name">Tic Tac Toe</span>
+              <span class="gc-desc">Classic X vs O · 2 players</span>
+            </span>
+            <span class="gc-go">›</span>
+          </button>
+          <button class="game-card" data-game="wordle">
+            <span class="gc-icon">🔤</span>
+            <span class="gc-body">
+              <span class="gc-name">Wordle</span>
+              <span class="gc-desc">Guess-the-word race · 2–4 players</span>
+            </span>
+            <span class="gc-go">›</span>
+          </button>
         </div>
 
         <div class="card">
-          <button id="btn-create" class="btn primary">Create a room</button>
-          <div class="divider"><span>or join one</span></div>
+          <div class="divider"><span>or join a room</span></div>
           <div class="join-row">
             <input
               id="input-code"
@@ -61,7 +85,7 @@
       <!-- LOBBY -->
       <section id="screen-lobby" class="screen">
         <div class="lobby-head">
-          <span class="muted">Room code</span>
+          <span id="lobby-game" class="muted small"></span>
           <div id="lobby-code" class="room-code">----</div>
         </div>
 
@@ -98,7 +122,7 @@
         </div>
       </section>
 
-      <!-- QUESTION -->
+      <!-- QUIZ: QUESTION -->
       <section id="screen-question" class="screen">
         <div class="q-topbar">
           <span id="q-progress" class="pill">Q1 / 5</span>
@@ -115,7 +139,7 @@
         <p id="q-status" class="muted center small"></p>
       </section>
 
-      <!-- REVEAL -->
+      <!-- QUIZ: REVEAL -->
       <section id="screen-reveal" class="screen">
         <div class="card center reveal-card">
           <div id="reveal-icon" class="reveal-icon">✅</div>
@@ -130,7 +154,7 @@
         <p id="reveal-next" class="muted center small"></p>
       </section>
 
-      <!-- RESULTS -->
+      <!-- QUIZ: RESULTS -->
       <section id="screen-results" class="screen">
         <div class="card center">
           <div class="moon">🏆</div>
@@ -147,6 +171,52 @@
             Waiting for the host to start a new round…
           </p>
           <button id="btn-results-leave" class="btn ghost small">Leave</button>
+        </div>
+      </section>
+
+      <!-- TIC TAC TOE -->
+      <section id="screen-ttt" class="screen">
+        <div class="ttt-head">
+          <h2 id="ttt-status" class="center">Tic Tac Toe</h2>
+        </div>
+        <div id="ttt-board" class="ttt-board"></div>
+        <div class="lobby-actions">
+          <button id="btn-ttt-rematch" class="btn primary hidden">Rematch</button>
+          <p id="ttt-waiting" class="muted center hidden">
+            Waiting for the host to start a rematch…
+          </p>
+          <button id="btn-ttt-leave" class="btn ghost small">Leave</button>
+        </div>
+      </section>
+
+      <!-- WORDLE -->
+      <section id="screen-wordle" class="screen">
+        <div class="wordle-head">
+          <span class="muted small">Guess the 5-letter word</span>
+          <span id="wordle-guesscount" class="pill">0 / 6</span>
+        </div>
+        <div id="wordle-grid" class="wordle-grid"></div>
+        <p id="wordle-msg" class="muted center small"></p>
+
+        <div id="wordle-banner" class="card center hidden">
+          <div id="wordle-banner-icon" class="reveal-icon">🎉</div>
+          <h2 id="wordle-banner-title"></h2>
+          <p id="wordle-banner-sub" class="muted"></p>
+        </div>
+
+        <div id="wordle-opps" class="card hidden">
+          <h2>Players</h2>
+          <ul id="wordle-opp-list" class="board"></ul>
+        </div>
+
+        <div id="wordle-keyboard" class="wordle-keyboard"></div>
+
+        <div class="lobby-actions">
+          <button id="btn-wordle-rematch" class="btn primary hidden">Rematch</button>
+          <p id="wordle-waiting" class="muted center hidden">
+            Waiting for the host to start a rematch…
+          </p>
+          <button id="btn-wordle-leave" class="btn ghost small">Leave</button>
         </div>
       </section>
     </div>

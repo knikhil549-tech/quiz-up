@@ -1,8 +1,7 @@
-/* Quiz Up — room, lobby, and quiz client */
+/* Game Night — room + lobby + Quiz / Tic Tac Toe / Wordle clients */
 (function () {
   const socket = io();
 
-  // --- tiny DOM helpers ---
   const $ = (id) => document.getElementById(id);
   const screens = {
     home: $("screen-home"),
@@ -11,42 +10,51 @@
     question: $("screen-question"),
     reveal: $("screen-reveal"),
     results: $("screen-results"),
+    ttt: $("screen-ttt"),
+    wordle: $("screen-wordle"),
   };
   function show(name) {
     Object.values(screens).forEach((s) => s.classList.remove("active"));
     screens[name].classList.add("active");
   }
 
-  // --- local state ---
   const state = {
     mode: null, // 'create' | 'join'
-    pendingCode: null, // code we're about to join
+    pendingGame: "quiz", // game chosen on the launcher
+    pendingCode: null,
     myId: null,
-    room: null, // latest lobby snapshot
+    room: null,
     joinUrl: null,
-    // per-question
+    gameType: "quiz",
+    // quiz
     qIndex: -1,
     seconds: 30,
     endsAt: 0,
-    picked: null, // index I tapped, or null
-    tick: null, // interval handle for the countdown
-    selectedCats: null, // Set of category names the host has chosen
+    picked: null,
+    tick: null,
+    selectedCats: null,
+    // wordle
+    wordle: { input: "", lastCount: 0, over: false },
   };
 
-  // --- read ?room=CODE from the QR/link ---
   const params = new URLSearchParams(location.search);
   const linkCode = (params.get("room") || "").toUpperCase().trim();
 
-  // ============ HOME ============
-  $("btn-create").addEventListener("click", () => {
-    state.mode = "create";
-    state.pendingCode = null;
-    $("name-title").textContent = "You're the host";
-    $("name-sub").textContent = "Pick a name your friends will recognise.";
-    $("input-name").value = "";
-    $("name-error").textContent = "";
-    show("name");
-    $("input-name").focus();
+  // ============ HOME (launcher) ============
+  document.querySelectorAll(".game-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      ensureAudio();
+      state.mode = "create";
+      state.pendingGame = card.getAttribute("data-game") || "quiz";
+      state.pendingCode = null;
+      const label = card.querySelector(".gc-name").textContent;
+      $("name-title").textContent = "Hosting " + label;
+      $("name-sub").textContent = "Pick a name your friends will recognise.";
+      $("input-name").value = "";
+      $("name-error").textContent = "";
+      show("name");
+      $("input-name").focus();
+    });
   });
 
   $("btn-join").addEventListener("click", () => tryJoinFromHome());
@@ -93,7 +101,7 @@
       return;
     }
     if (state.mode === "create") {
-      socket.emit("createRoom", { name }, onRoomJoined);
+      socket.emit("createRoom", { name, gameType: state.pendingGame }, onRoomJoined);
     } else {
       socket.emit("joinRoom", { code: state.pendingCode, name }, onRoomJoined);
     }
@@ -106,6 +114,7 @@
     }
     state.myId = res.playerId;
     state.joinUrl = res.joinUrl || null;
+    state.gameType = res.gameType || "quiz";
     applyLobby(res);
     if (res.qr) {
       $("qr-img").src = res.qr;
@@ -127,9 +136,11 @@
 
   $("btn-leave").addEventListener("click", leaveToHome);
   $("btn-results-leave").addEventListener("click", leaveToHome);
+  $("btn-ttt-leave").addEventListener("click", leaveToHome);
+  $("btn-wordle-leave").addEventListener("click", leaveToHome);
   function leaveToHome() {
     socket.emit("leaveRoom");
-    location.href = location.origin; // clean slate, drops ?room=
+    location.href = location.origin;
   }
 
   $("btn-copy").addEventListener("click", async () => {
@@ -144,10 +155,16 @@
   });
 
   socket.on("lobby", applyLobby);
+  socket.on("aborted", (d) => {
+    $("lobby-error").textContent = (d && d.reason) || "Back to the lobby.";
+    show("lobby");
+  });
 
   function applyLobby(room) {
     state.room = room;
+    state.gameType = room.gameType || state.gameType;
     $("lobby-code").textContent = room.code;
+    $("lobby-game").textContent = room.gameName || "";
     $("player-count").textContent =
       String(room.players.length) + " / " + (room.maxPlayers || 4);
 
@@ -175,7 +192,6 @@
       list.append(li);
     });
 
-    // Only touch the lobby controls while we're actually on the lobby screen.
     if (!screens.lobby.classList.contains("active")) return;
 
     const amHost = room.hostId === state.myId;
@@ -197,8 +213,8 @@
     }
     $("qr-wrap").classList.toggle("hidden", !amHost || !state.joinUrl);
 
-    // Only the host chooses categories.
-    if (amHost && Array.isArray(room.categories) && room.categories.length) {
+    // Categories only apply to the quiz, and only the host chooses.
+    if (amHost && room.gameType === "quiz" && Array.isArray(room.categories) && room.categories.length) {
       renderCategories(room.categories);
       $("cat-card").classList.remove("hidden");
     } else {
@@ -207,7 +223,6 @@
   }
 
   function renderCategories(cats) {
-    // Default to all categories selected the first time we see them.
     if (!state.selectedCats) {
       state.selectedCats = new Set(cats.map((c) => c.name));
     }
@@ -226,7 +241,7 @@
       chip.append(name, count);
       chip.addEventListener("click", () => {
         if (state.selectedCats.has(c.name)) {
-          if (state.selectedCats.size === 1) return; // keep at least one on
+          if (state.selectedCats.size === 1) return;
           state.selectedCats.delete(c.name);
         } else {
           state.selectedCats.add(c.name);
@@ -238,10 +253,14 @@
     $("cat-count").textContent = state.selectedCats.size + " / " + cats.length;
   }
 
+  function hostRematch(errEl) {
+    socket.emit("rematch", null, (res) => {
+      if (res && !res.ok && errEl) errEl.textContent = res.error || "Could not restart.";
+    });
+  }
+
   // ============ QUIZ ============
-  socket.on("gameStarted", () => {
-    // The first "question" event will drive the UI; nothing to do yet.
-  });
+  socket.on("gameStarted", () => {});
 
   socket.on("question", (data) => {
     stopTick();
@@ -260,9 +279,7 @@
       const btn = document.createElement("button");
       btn.className = "option";
       btn.innerHTML =
-        '<span class="opt-letter">' +
-        "ABCD"[i] +
-        '</span><span class="opt-text"></span>';
+        '<span class="opt-letter">' + "ABCD"[i] + '</span><span class="opt-text"></span>';
       btn.querySelector(".opt-text").textContent = opt;
       btn.addEventListener("click", () => pickAnswer(i, btn));
       wrap.append(btn);
@@ -273,8 +290,8 @@
   });
 
   function pickAnswer(choice, btn) {
-    if (state.picked !== null) return; // locked in already
-    ensureAudio(); // this tap is our chance to unlock audio for the reveal
+    if (state.picked !== null) return;
+    ensureAudio();
     state.picked = choice;
 
     document.querySelectorAll("#q-options .option").forEach((b, i) => {
@@ -283,18 +300,13 @@
     });
     $("q-status").textContent = "Locked in — waiting for others…";
 
-    socket.emit("answer", { index: state.qIndex, choice }, (res) => {
-      if (res && !res.ok) {
-        // Rare: server rejected (stale/late). Let the reveal correct things.
-      }
-    });
+    socket.emit("answer", { index: state.qIndex, choice }, () => {});
   }
 
   socket.on("answerCount", (d) => {
     if (!screens.question.classList.contains("active")) return;
     if (state.picked !== null) {
-      $("q-status").textContent =
-        "Locked in — " + d.answered + " / " + d.total + " answered";
+      $("q-status").textContent = "Locked in — " + d.answered + " / " + d.total + " answered";
     }
   });
 
@@ -303,8 +315,6 @@
     const mine = data.results && data.results[state.myId];
     const correctIdx = data.correct;
 
-    // Colour the options in place before switching screens is overkill;
-    // the dedicated reveal screen tells the story clearly.
     const icon = $("reveal-icon");
     const head = $("reveal-headline");
     if (!mine || !mine.answered) {
@@ -322,8 +332,6 @@
       head.className = "danger-text";
     }
 
-    // We don't keep the option text around here, so show the letter + resolve
-    // via the question screen buttons still in the DOM.
     const optBtns = document.querySelectorAll("#q-options .option .opt-text");
     const correctText = optBtns[correctIdx] ? optBtns[correctIdx].textContent : "";
     $("reveal-correct").textContent =
@@ -331,7 +339,6 @@
     $("reveal-explain").textContent = data.explanation || "";
 
     renderBoard($("reveal-board"), data.scoreboard);
-
     $("reveal-next").textContent = data.isLast
       ? "Final scores coming up…"
       : "Next question in a moment…";
@@ -350,9 +357,7 @@
       headline.textContent = "No winner";
       sub.textContent = "Nobody scored this round.";
     } else if (data.tie) {
-      const names = board
-        .filter((p) => data.winnerIds.includes(p.id))
-        .map((p) => p.name);
+      const names = board.filter((p) => data.winnerIds.includes(p.id)).map((p) => p.name);
       headline.textContent = "It's a tie!";
       sub.textContent = names.join(" & ") + " — " + board[0].score + " points each";
     } else {
@@ -360,6 +365,7 @@
       headline.textContent = (w ? w.name : "Winner") + " wins!";
       sub.textContent =
         (w ? w.score : 0) + " points" + (data.winnerIds[0] === state.myId ? " — that's you 🎉" : "");
+      if (data.winnerIds[0] === state.myId) celebrate();
     }
 
     const amHost = state.room && state.room.hostId === state.myId;
@@ -368,18 +374,240 @@
     show("results");
   });
 
-  $("btn-again").addEventListener("click", () => {
-    socket.emit("playAgain", null, () => {});
+  $("btn-again").addEventListener("click", () => socket.emit("playAgain", null, () => {}));
+  socket.on("backToLobby", () => show("lobby"));
+
+  // ============ TIC TAC TOE ============
+  socket.on("ttt:state", (d) => {
+    state.ttt = d;
+    const myMark = d.marks[state.myId];
+    const nameOf = (id) => {
+      const p = d.players.find((x) => x.id === id);
+      return p ? p.name : "Player";
+    };
+
+    const board = $("ttt-board");
+    board.innerHTML = "";
+    d.board.forEach((mark, i) => {
+      const cell = document.createElement("button");
+      cell.className = "ttt-cell" + (mark ? " filled mark-" + mark : "");
+      if (d.line && d.line.includes(i)) cell.classList.add("win");
+      cell.textContent = mark || "";
+      const myTurn = d.state === "playing" && d.turn === state.myId && !mark;
+      if (myTurn) {
+        cell.addEventListener("click", () => socket.emit("ttt:move", { cell: i }));
+      } else {
+        cell.disabled = true;
+      }
+      board.append(cell);
+    });
+
+    const status = $("ttt-status");
+    if (d.state === "over") {
+      if (d.draw) {
+        status.textContent = "It's a draw!";
+        status.className = "center";
+      } else if (d.winner === state.myId) {
+        status.textContent = "You win! 🎉";
+        status.className = "center ok-text";
+        celebrate();
+      } else {
+        status.textContent = nameOf(d.winner) + " wins";
+        status.className = "center danger-text";
+      }
+    } else {
+      status.className = "center";
+      if (d.turn === state.myId) {
+        status.textContent = "Your turn (" + myMark + ")";
+      } else {
+        status.textContent = "Waiting for " + nameOf(d.turn) + " (" + d.marks[d.turn] + ")";
+      }
+    }
+
+    const amHost = state.room && state.room.hostId === state.myId;
+    const over = d.state === "over";
+    $("btn-ttt-rematch").classList.toggle("hidden", !(over && amHost));
+    $("ttt-waiting").classList.toggle("hidden", !(over && !amHost));
+
+    show("ttt");
   });
 
-  socket.on("backToLobby", () => {
-    // The follow-up "lobby" event repaints the list; just switch screens.
-    show("lobby");
+  $("btn-ttt-rematch").addEventListener("click", () => hostRematch(null));
+
+  // ============ WORDLE ============
+  const WK_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+
+  socket.on("wordle:state", (d) => {
+    // Reset the typed row whenever a new guess was accepted.
+    if (d.me.guesses.length !== state.wordle.lastCount) {
+      state.wordle.input = "";
+      state.wordle.lastCount = d.me.guesses.length;
+    }
+    state.wordle.over = d.state === "over";
+    state.wordle.data = d;
+    renderWordle();
+    show("wordle");
   });
 
-  // ---- celebration: sound + confetti on a correct answer ----
+  function renderWordle() {
+    const d = state.wordle.data;
+    if (!d) return;
+    const max = d.me.maxGuesses || 6;
+    const done = d.me.done || state.wordle.over;
+
+    $("wordle-guesscount").textContent = d.me.guesses.length + " / " + max;
+
+    // Grid
+    const grid = $("wordle-grid");
+    grid.innerHTML = "";
+    for (let r = 0; r < max; r++) {
+      const row = document.createElement("div");
+      row.className = "wordle-row";
+      const guess = d.me.guesses[r];
+      const typing = !done && r === d.me.guesses.length ? state.wordle.input : null;
+      for (let c = 0; c < 5; c++) {
+        const tile = document.createElement("div");
+        tile.className = "wordle-tile";
+        if (guess) {
+          tile.textContent = guess.word[c].toUpperCase();
+          tile.classList.add("t-" + guess.result[c]);
+        } else if (typing !== null && c < typing.length) {
+          tile.textContent = typing[c].toUpperCase();
+          tile.classList.add("t-typing");
+        }
+        row.append(tile);
+      }
+      grid.append(row);
+    }
+
+    // Keyboard letter states from my guesses
+    const best = {};
+    const rank = { correct: 3, present: 2, absent: 1 };
+    d.me.guesses.forEach((g) => {
+      g.word.split("").forEach((ch, i) => {
+        const st = g.result[i];
+        if (!best[ch] || rank[st] > rank[best[ch]]) best[ch] = st;
+      });
+    });
+    const kb = $("wordle-keyboard");
+    kb.innerHTML = "";
+    WK_ROWS.forEach((rowStr, idx) => {
+      const row = document.createElement("div");
+      row.className = "wk-row";
+      if (idx === 2) row.append(makeKey("↵", "enter", "wk-wide"));
+      rowStr.split("").forEach((ch) => {
+        row.append(makeKey(ch.toUpperCase(), ch, best[ch] ? "k-" + best[ch] : ""));
+      });
+      if (idx === 2) row.append(makeKey("⌫", "back", "wk-wide"));
+      kb.append(row);
+    });
+    kb.classList.toggle("hidden", done);
+
+    // Opponents / players progress
+    const opps = d.opponents || [];
+    $("wordle-opps").classList.toggle("hidden", opps.length === 0);
+    const list = $("wordle-opp-list");
+    list.innerHTML = "";
+    opps.forEach((o) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "bname";
+      name.textContent = o.name;
+      const pts = document.createElement("span");
+      pts.className = "pts";
+      pts.textContent = o.solved ? "✅ " + o.guessCount : o.done ? "❌ " + o.guessCount : o.guessCount + " / " + max;
+      li.append(name, pts);
+      list.append(li);
+    });
+
+    // Status message / end banner
+    const msg = $("wordle-msg");
+    const banner = $("wordle-banner");
+    if (state.wordle.over) {
+      msg.textContent = "";
+      banner.classList.remove("hidden");
+      const won = d.winnerIds && d.winnerIds.includes(state.myId);
+      const anyWinner = d.winnerIds && d.winnerIds.length > 0;
+      $("wordle-banner-icon").textContent = won ? "🏆" : anyWinner ? "🙁" : "🫥";
+      if (won) {
+        $("wordle-banner-title").textContent = "You win!";
+        $("wordle-banner-title").className = "ok-text";
+      } else if (anyWinner) {
+        const wname = (opps.find((o) => o.id === d.winnerIds[0]) || {}).name || "Someone";
+        $("wordle-banner-title").textContent = wname + " wins";
+        $("wordle-banner-title").className = "";
+      } else {
+        $("wordle-banner-title").textContent = "Nobody got it";
+        $("wordle-banner-title").className = "";
+      }
+      $("wordle-banner-sub").textContent = d.secret
+        ? "The word was " + d.secret.toUpperCase()
+        : "";
+      if (won) celebrate();
+    } else {
+      banner.classList.add("hidden");
+      if (done) {
+        msg.textContent = d.me.solved ? "Solved! Waiting for others…" : "Out of guesses. Waiting for others…";
+      } else {
+        msg.textContent = "";
+      }
+    }
+
+    const amHost = state.room && state.room.hostId === state.myId;
+    $("btn-wordle-rematch").classList.toggle("hidden", !(state.wordle.over && amHost));
+    $("wordle-waiting").classList.toggle("hidden", !(state.wordle.over && !amHost));
+  }
+
+  function makeKey(label, key, cls) {
+    const b = document.createElement("button");
+    b.className = "wk-key " + (cls || "");
+    b.textContent = label;
+    b.addEventListener("click", () => wordleKey(key));
+    return b;
+  }
+
+  function wordleKey(key) {
+    const d = state.wordle.data;
+    if (!d || state.wordle.over || d.me.done) return;
+    if (key === "enter") {
+      submitWordleGuess();
+    } else if (key === "back") {
+      state.wordle.input = state.wordle.input.slice(0, -1);
+      renderWordle();
+    } else if (/^[a-z]$/.test(key)) {
+      if (state.wordle.input.length < 5) {
+        state.wordle.input += key;
+        renderWordle();
+      }
+    }
+  }
+
+  function submitWordleGuess() {
+    const word = state.wordle.input;
+    if (word.length !== 5) {
+      $("wordle-msg").textContent = "Enter 5 letters";
+      return;
+    }
+    socket.emit("wordle:guess", { word }, (res) => {
+      if (res && !res.ok) {
+        $("wordle-msg").textContent = res.error || "Not accepted";
+      }
+    });
+  }
+
+  $("btn-wordle-rematch").addEventListener("click", () => hostRematch(null));
+
+  // Physical keyboard support for Wordle (handy on laptops).
+  document.addEventListener("keydown", (e) => {
+    if (!screens.wordle.classList.contains("active")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Enter") wordleKey("enter");
+    else if (e.key === "Backspace") wordleKey("back");
+    else if (/^[a-zA-Z]$/.test(e.key)) wordleKey(e.key.toLowerCase());
+  });
+
+  // ============ celebration: sound + confetti ============
   let audioCtx = null;
-  // Browsers only allow audio after a user gesture, so prime it on taps.
   function ensureAudio() {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -387,7 +615,7 @@
       if (!audioCtx) audioCtx = new AC();
       if (audioCtx.state === "suspended") audioCtx.resume();
     } catch (_) {
-      /* audio is a nicety; ignore if unavailable */
+      /* audio is a nicety */
     }
   }
 
@@ -395,7 +623,6 @@
     ensureAudio();
     if (!audioCtx) return;
     try {
-      // A short rising arpeggio (C-E-G-C).
       const notes = [523.25, 659.25, 783.99, 1046.5];
       const now = audioCtx.currentTime;
       notes.forEach((freq, i) => {
@@ -413,7 +640,7 @@
         osc.stop(t + 0.4);
       });
     } catch (_) {
-      /* ignore audio errors */
+      /* ignore */
     }
   }
 
@@ -457,11 +684,8 @@
         ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
         ctx.restore();
       });
-      if (ts - start < duration) {
-        requestAnimationFrame(frame);
-      } else {
-        canvas.remove();
-      }
+      if (ts - start < duration) requestAnimationFrame(frame);
+      else canvas.remove();
     }
     requestAnimationFrame(frame);
   }
@@ -471,7 +695,7 @@
     dropConfetti();
   }
 
-  // ---- countdown timer (client-side, synced to server endsAt) ----
+  // ---- quiz countdown timer ----
   function startTick() {
     render();
     state.tick = setInterval(render, 200);
@@ -492,7 +716,6 @@
     }
   }
 
-  // ---- shared scoreboard renderer ----
   function renderBoard(ul, board, winnerIds) {
     ul.innerHTML = "";
     board.forEach((p, i) => {

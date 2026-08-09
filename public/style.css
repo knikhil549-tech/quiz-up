@@ -277,6 +277,190 @@ h2 {
   margin-top: 4px;
 }
 
+/* ===== Home: game launcher ===== */
+.game-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.game-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: transform 0.06s ease, border-color 0.15s ease;
+}
+.game-card:active {
+  transform: scale(0.99);
+}
+.game-card:hover {
+  border-color: var(--accent);
+}
+.gc-icon {
+  font-size: 30px;
+  line-height: 1;
+  flex: none;
+}
+.gc-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.gc-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.gc-desc {
+  font-size: 13px;
+  color: var(--muted);
+}
+.gc-go {
+  font-size: 24px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* ===== Tic Tac Toe ===== */
+.ttt-head {
+  margin-bottom: 16px;
+}
+.ttt-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 340px;
+  margin: 0 auto 20px;
+}
+.ttt-cell {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  font-size: 46px;
+  font-weight: 800;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  color: var(--ink);
+  transition: transform 0.06s ease, background 0.15s ease;
+}
+.ttt-cell:disabled {
+  cursor: default;
+}
+.ttt-cell.mark-X {
+  color: var(--accent);
+}
+.ttt-cell.mark-O {
+  color: var(--ok);
+}
+.ttt-cell.win {
+  background: #eeecff;
+  border-color: var(--accent);
+}
+
+/* ===== Wordle ===== */
+.wordle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.wordle-grid {
+  display: grid;
+  gap: 6px;
+  max-width: 300px;
+  margin: 0 auto 12px;
+}
+.wordle-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.wordle-tile {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  font-weight: 800;
+  text-transform: uppercase;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--card);
+}
+.wordle-tile.t-typing {
+  border-color: var(--muted);
+}
+.wordle-tile.t-correct {
+  background: #6aaa64;
+  border-color: #6aaa64;
+  color: #fff;
+}
+.wordle-tile.t-present {
+  background: #c9b458;
+  border-color: #c9b458;
+  color: #fff;
+}
+.wordle-tile.t-absent {
+  background: #9aa0a6;
+  border-color: #9aa0a6;
+  color: #fff;
+}
+.wordle-keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 16px;
+}
+.wk-row {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+}
+.wk-key {
+  flex: 1;
+  min-width: 0;
+  max-width: 42px;
+  height: 52px;
+  border: none;
+  border-radius: 8px;
+  background: #d7d9e0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.wk-key:active {
+  transform: scale(0.96);
+}
+.wk-key.wk-wide {
+  max-width: 58px;
+  font-size: 18px;
+}
+.wk-key.k-correct {
+  background: #6aaa64;
+  color: #fff;
+}
+.wk-key.k-present {
+  background: #c9b458;
+  color: #fff;
+}
+.wk-key.k-absent {
+  background: #9aa0a6;
+  color: #fff;
+}
+
 /* ===== Lobby: category picker ===== */
 .cats {
   display: flex;

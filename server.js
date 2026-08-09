@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { CATEGORIES, pickQuestions } = require('./questions');
 const history = require('./history');
+const { pickWord } = require('./words');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,16 +17,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 const QUESTIONS_PER_GAME = 5;
 const POINTS_PER_CORRECT = 2;
 const ANSWER_SECONDS = 30;
-const REVEAL_SECONDS = 5; // how long the correct answer + running scores stay up
-const MIN_PLAYERS = 2;
-const MAX_PLAYERS = 4;
+const REVEAL_SECONDS = 5;
+
+// Wordle tuning.
+const WORDLE_MAX_GUESSES = 6;
+const WORDLE_SECONDS = 180; // round cap so a stalled player can't hang the game
+
+// Games and their player limits.
+const GAMES = {
+  quiz: { min: 2, max: 4, name: 'Quiz Up' },
+  ttt: { min: 2, max: 2, name: 'Tic Tac Toe' },
+  wordle: { min: 2, max: 4, name: 'Wordle' },
+};
+function limits(type) {
+  return GAMES[type] || GAMES.quiz;
+}
 
 // In-memory rooms. Fine for a party game; state is disposable.
-// rooms: code -> {
-//   code, hostId, state: 'lobby'|'playing'|'over',
-//   players: [{id, name, score}],
-//   game: { questions, qIndex, phase, endsAt, answers: Map<id,{choice,at}>, timer } | null
-// }
 const rooms = new Map();
 
 // Unambiguous characters only (no O/0, I/1, etc.) so codes are easy to type.
@@ -49,13 +57,16 @@ function baseUrl(socket) {
 }
 
 function lobbyState(room) {
+  const lim = limits(room.gameType);
   return {
     code: room.code,
     state: room.state,
     hostId: room.hostId,
-    minPlayers: MIN_PLAYERS,
-    maxPlayers: MAX_PLAYERS,
-    categories: CATEGORIES,
+    gameType: room.gameType,
+    gameName: lim.name,
+    minPlayers: lim.min,
+    maxPlayers: lim.max,
+    categories: room.gameType === 'quiz' ? CATEGORIES : null,
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -74,19 +85,20 @@ function cleanName(name, fallback) {
   return n || fallback;
 }
 
+// ========================= QUIZ =========================
+
 function scoreboard(room) {
   return [...room.players]
     .sort((a, b) => b.score - a.score)
     .map((p) => ({ id: p.id, name: p.name, score: p.score }));
 }
 
-// ---------- Quiz flow ----------
-
-function startGame(room, cats) {
+function startQuiz(room, cats) {
   room.state = 'playing';
   room.players.forEach((p) => (p.score = 0));
   const questions = pickQuestions(QUESTIONS_PER_GAME, cats);
   room.game = {
+    type: 'quiz',
     questions,
     qIndex: -1,
     phase: 'question',
@@ -104,7 +116,7 @@ function nextQuestion(room) {
   g.qIndex += 1;
 
   if (g.qIndex >= g.questions.length) {
-    return endGame(room);
+    return endQuiz(room);
   }
 
   g.phase = 'question';
@@ -135,7 +147,6 @@ function revealAnswer(room) {
 
   const q = g.questions[g.qIndex];
 
-  // Award points, and remember each player's result for personalised feedback.
   const results = {};
   room.players.forEach((p) => {
     const a = g.answers.get(p.id);
@@ -154,7 +165,7 @@ function revealAnswer(room) {
     index: g.qIndex,
     correct: q.correct,
     explanation: q.explanation || null,
-    results, // keyed by playerId; client picks out its own
+    results,
     scoreboard: scoreboard(room),
     seconds: REVEAL_SECONDS,
     isLast: g.qIndex >= g.questions.length - 1,
@@ -163,15 +174,14 @@ function revealAnswer(room) {
   g.timer = setTimeout(() => nextQuestion(room), REVEAL_SECONDS * 1000);
 }
 
-// If everyone still connected has answered, don't make them wait out the clock.
 function maybeRevealEarly(room) {
   const g = room.game;
-  if (!g || g.phase !== 'question') return;
+  if (!g || g.type !== 'quiz' || g.phase !== 'question') return;
   const everyone = room.players.every((p) => g.answers.has(p.id));
   if (everyone) revealAnswer(room);
 }
 
-function endGame(room) {
+function endQuiz(room) {
   const g = room.game;
   if (g) clearTimeout(g.timer);
   room.state = 'over';
@@ -180,20 +190,185 @@ function endGame(room) {
   const winners = board.filter((p) => p.score === top && top > 0).map((p) => p.id);
   io.to(room.code).emit('gameOver', {
     scoreboard: board,
-    winnerIds: winners, // may be several on a tie; empty if nobody scored
+    winnerIds: winners,
     tie: winners.length > 1,
   });
   room.game = null;
 }
 
-// ---------- Sockets ----------
+// ========================= TIC TAC TOE =========================
+
+const TTT_LINES = [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8],
+  [0, 3, 6], [1, 4, 7], [2, 5, 8],
+  [0, 4, 8], [2, 4, 6],
+];
+
+function winningLine(b) {
+  for (const [a, c, d] of TTT_LINES) {
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return [a, c, d];
+  }
+  return null;
+}
+
+function startTtt(room) {
+  room.state = 'playing';
+  const [a, b] = room.players;
+  // Alternate who goes first across rematches.
+  const firstIsA = !room.tttFirstWasA;
+  room.tttFirstWasA = firstIsA;
+  const xId = firstIsA ? a.id : b.id;
+  const oId = firstIsA ? b.id : a.id;
+  room.game = {
+    type: 'ttt',
+    board: Array(9).fill(null),
+    order: [xId, oId],
+    marks: { [xId]: 'X', [oId]: 'O' },
+    turn: xId,
+    winner: null,
+    line: null,
+    draw: false,
+  };
+  broadcastTtt(room);
+}
+
+function broadcastTtt(room) {
+  const g = room.game;
+  io.to(room.code).emit('ttt:state', {
+    board: g.board,
+    turn: g.turn,
+    marks: g.marks,
+    winner: g.winner,
+    line: g.line,
+    draw: g.draw,
+    state: room.state,
+    players: room.players.map((p) => ({ id: p.id, name: p.name })),
+  });
+}
+
+// ========================= WORDLE =========================
+
+function scoreGuess(guess, secret) {
+  const res = Array(5).fill('absent');
+  const s = secret.split('');
+  const g = guess.split('');
+  const counts = {};
+  for (const c of s) counts[c] = (counts[c] || 0) + 1;
+  for (let i = 0; i < 5; i++) {
+    if (g[i] === s[i]) {
+      res[i] = 'correct';
+      counts[g[i]] -= 1;
+    }
+  }
+  for (let i = 0; i < 5; i++) {
+    if (res[i] === 'correct') continue;
+    if (counts[g[i]] > 0) {
+      res[i] = 'present';
+      counts[g[i]] -= 1;
+    }
+  }
+  return res;
+}
+
+function startWordle(room) {
+  room.state = 'playing';
+  const boards = {};
+  room.players.forEach((p) => {
+    boards[p.id] = { guesses: [], solved: false, done: false, solvedAt: null };
+  });
+  room.game = {
+    type: 'wordle',
+    secret: pickWord(),
+    boards,
+    solveSeq: 0,
+    winnerIds: [],
+    timer: null,
+  };
+  room.game.timer = setTimeout(() => endWordle(room), WORDLE_SECONDS * 1000);
+  broadcastWordle(room);
+}
+
+function wordleSummary(room) {
+  const g = room.game;
+  return room.players.map((p) => {
+    const b = g.boards[p.id];
+    return {
+      id: p.id,
+      name: p.name,
+      guessCount: b ? b.guesses.length : 0,
+      solved: b ? b.solved : false,
+      done: b ? b.done : true,
+    };
+  });
+}
+
+function broadcastWordle(room, reveal) {
+  const g = room.game;
+  const summary = wordleSummary(room);
+  room.players.forEach((p) => {
+    const b = g.boards[p.id];
+    io.to(p.id).emit('wordle:state', {
+      me: {
+        guesses: b ? b.guesses : [],
+        solved: b ? b.solved : false,
+        done: b ? b.done : true,
+        maxGuesses: WORDLE_MAX_GUESSES,
+      },
+      opponents: summary.filter((s) => s.id !== p.id),
+      state: room.state,
+      secret: reveal ? g.secret : null,
+      winnerIds: reveal ? g.winnerIds : null,
+    });
+  });
+}
+
+function endWordle(room) {
+  const g = room.game;
+  if (!g) return;
+  if (g.timer) clearTimeout(g.timer);
+  room.state = 'over';
+  const solvers = room.players
+    .filter((p) => g.boards[p.id] && g.boards[p.id].solved)
+    .sort((a, b) => {
+      const A = g.boards[a.id];
+      const B = g.boards[b.id];
+      return A.guesses.length - B.guesses.length || A.solvedAt - B.solvedAt;
+    });
+  g.winnerIds = solvers.length ? [solvers[0].id] : [];
+  broadcastWordle(room, true);
+}
+
+// ========================= DISPATCH =========================
+
+function launch(room, categories) {
+  if (room.gameType === 'ttt') return startTtt(room);
+  if (room.gameType === 'wordle') return startWordle(room);
+  const cats = Array.isArray(categories)
+    ? categories.filter((c) => typeof c === 'string')
+    : null;
+  return startQuiz(room, cats);
+}
+
+function clearRoomTimer(room) {
+  if (room.game && room.game.timer) clearTimeout(room.game.timer);
+}
+
+// ========================= SOCKETS =========================
 
 io.on('connection', (socket) => {
   socket.data.roomCode = null;
 
-  socket.on('createRoom', async ({ name } = {}, cb) => {
+  socket.on('createRoom', async ({ name, gameType } = {}, cb) => {
+    const type = GAMES[gameType] ? gameType : 'quiz';
     const code = makeCode();
-    const room = { code, hostId: socket.id, players: [], state: 'lobby', game: null };
+    const room = {
+      code,
+      hostId: socket.id,
+      players: [],
+      state: 'lobby',
+      gameType: type,
+      game: null,
+    };
     rooms.set(code, room);
     room.players.push({ id: socket.id, name: cleanName(name, 'Host'), score: 0 });
     socket.join(code);
@@ -217,8 +392,9 @@ io.on('connection', (socket) => {
     if (!room) return cb && cb({ ok: false, error: 'Room not found' });
     if (room.state !== 'lobby')
       return cb && cb({ ok: false, error: 'That game has already started' });
-    if (room.players.length >= MAX_PLAYERS)
-      return cb && cb({ ok: false, error: `Room is full (${MAX_PLAYERS} max)` });
+    const lim = limits(room.gameType);
+    if (room.players.length >= lim.max)
+      return cb && cb({ ok: false, error: `Room is full (${lim.max} max)` });
 
     room.players.push({ id: socket.id, name: cleanName(name, 'Player'), score: 0 });
     socket.join(code);
@@ -235,29 +411,40 @@ io.on('connection', (socket) => {
       return cb && cb({ ok: false, error: 'Only the host can start' });
     if (room.state !== 'lobby')
       return cb && cb({ ok: false, error: 'Game already started' });
-    if (room.players.length < MIN_PLAYERS)
-      return cb && cb({ ok: false, error: `Need at least ${MIN_PLAYERS} players` });
-
-    const cats = Array.isArray(categories)
-      ? categories.filter((c) => typeof c === 'string')
-      : null;
+    const lim = limits(room.gameType);
+    if (room.players.length < lim.min)
+      return cb && cb({ ok: false, error: `Need at least ${lim.min} players` });
 
     if (cb) cb({ ok: true });
-    startGame(room, cats);
+    launch(room, categories);
   });
 
+  // Host restarts the same game after it ends.
+  socket.on('rematch', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room) return cb && cb({ ok: false, error: 'Room no longer exists' });
+    if (socket.id !== room.hostId)
+      return cb && cb({ ok: false, error: 'Only the host can restart' });
+    const lim = limits(room.gameType);
+    if (room.players.length < lim.min)
+      return cb && cb({ ok: false, error: `Need at least ${lim.min} players` });
+    clearRoomTimer(room);
+    if (cb) cb({ ok: true });
+    launch(room);
+  });
+
+  // ---- Quiz ----
   socket.on('answer', ({ index, choice } = {}, cb) => {
     const room = rooms.get(socket.data.roomCode);
     const g = room && room.game;
-    if (!g || g.phase !== 'question') return cb && cb({ ok: false });
-    if (index !== g.qIndex) return cb && cb({ ok: false }); // stale answer
-    if (g.answers.has(socket.id)) return cb && cb({ ok: false }); // no changing
+    if (!g || g.type !== 'quiz' || g.phase !== 'question') return cb && cb({ ok: false });
+    if (index !== g.qIndex) return cb && cb({ ok: false });
+    if (g.answers.has(socket.id)) return cb && cb({ ok: false });
     if (typeof choice !== 'number' || choice < 0 || choice > 3)
       return cb && cb({ ok: false });
 
     g.answers.set(socket.id, { choice, at: Date.now() });
     if (cb) cb({ ok: true });
-    // Let everyone see how many have locked in.
     io.to(room.code).emit('answerCount', {
       answered: g.answers.size,
       total: room.players.length,
@@ -265,19 +452,72 @@ io.on('connection', (socket) => {
     maybeRevealEarly(room);
   });
 
-  // Host can send the room back to a fresh lobby for another round.
+  // Quiz "play again" returns everyone to the lobby (so the host can re-pick
+  // categories). Tic Tac Toe and Wordle use the quicker "rematch" instead.
   socket.on('playAgain', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return cb && cb({ ok: false, error: 'Room no longer exists' });
     if (socket.id !== room.hostId)
       return cb && cb({ ok: false, error: 'Only the host can restart' });
-    if (room.game) clearTimeout(room.game.timer);
+    clearRoomTimer(room);
     room.game = null;
     room.state = 'lobby';
     room.players.forEach((p) => (p.score = 0));
     if (cb) cb({ ok: true });
     io.to(room.code).emit('backToLobby');
     broadcastLobby(room);
+  });
+
+  // ---- Tic Tac Toe ----
+  socket.on('ttt:move', ({ cell } = {}) => {
+    const room = rooms.get(socket.data.roomCode);
+    const g = room && room.game;
+    if (!g || g.type !== 'ttt' || room.state !== 'playing') return;
+    if (socket.id !== g.turn) return;
+    if (typeof cell !== 'number' || cell < 0 || cell > 8 || g.board[cell]) return;
+
+    g.board[cell] = g.marks[socket.id];
+    const line = winningLine(g.board);
+    if (line) {
+      g.winner = socket.id;
+      g.line = line;
+      room.state = 'over';
+    } else if (g.board.every(Boolean)) {
+      g.draw = true;
+      room.state = 'over';
+    } else {
+      g.turn = g.order.find((id) => id !== socket.id);
+    }
+    broadcastTtt(room);
+  });
+
+  // ---- Wordle ----
+  socket.on('wordle:guess', ({ word } = {}, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    const g = room && room.game;
+    if (!g || g.type !== 'wordle' || room.state !== 'playing')
+      return cb && cb({ ok: false });
+    const b = g.boards[socket.id];
+    if (!b || b.done) return cb && cb({ ok: false });
+    word = (word || '').toString().toLowerCase();
+    if (!/^[a-z]{5}$/.test(word)) return cb && cb({ ok: false, error: 'Enter 5 letters' });
+
+    const result = scoreGuess(word, g.secret);
+    b.guesses.push({ word, result });
+    if (word === g.secret) {
+      b.solved = true;
+      b.done = true;
+      b.solvedAt = ++g.solveSeq;
+    } else if (b.guesses.length >= WORDLE_MAX_GUESSES) {
+      b.done = true;
+    }
+    if (cb) cb({ ok: true });
+
+    if (room.players.every((p) => g.boards[p.id] && g.boards[p.id].done)) {
+      endWordle(room);
+    } else {
+      broadcastWordle(room);
+    }
   });
 
   socket.on('leaveRoom', () => handleLeave());
@@ -290,23 +530,43 @@ io.on('connection', (socket) => {
     socket.data.roomCode = null;
 
     if (room.players.length === 0) {
-      if (room.game) clearTimeout(room.game.timer);
+      clearRoomTimer(room);
       rooms.delete(room.code);
       return;
     }
-    // Host left: hand the crown to whoever's been there longest.
     if (room.hostId === socket.id) room.hostId = room.players[0].id;
 
     if (room.state === 'lobby') {
       broadcastLobby(room);
-    } else if (room.state === 'playing') {
-      // A departure might mean the remaining players have all answered.
+      return;
+    }
+
+    // A player left mid-game.
+    const lim = limits(room.gameType);
+    if (room.gameType === 'quiz') {
       maybeRevealEarly(room);
-      // Keep the live scoreboard honest for whoever's left.
       io.to(room.code).emit('lobby', lobbyState(room));
+      return;
+    }
+    if (room.players.length < lim.min) {
+      // Not enough players to continue; drop back to the lobby.
+      clearRoomTimer(room);
+      room.game = null;
+      room.state = 'lobby';
+      io.to(room.code).emit('aborted', { reason: 'A player left, so we went back to the lobby.' });
+      broadcastLobby(room);
+      return;
+    }
+    if (room.gameType === 'wordle' && room.game) {
+      delete room.game.boards[socket.id];
+      if (room.players.every((p) => room.game.boards[p.id] && room.game.boards[p.id].done)) {
+        endWordle(room);
+      } else {
+        broadcastWordle(room);
+      }
     }
   }
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Quiz game running on http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Party games running on http://localhost:${PORT}`));
