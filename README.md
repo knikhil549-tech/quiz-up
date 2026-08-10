@@ -14,10 +14,16 @@ Pick one on the home screen:
 - **Tic Tac Toe** ⭕ — classic X vs O, exactly 2 players. Turn-based, with a
   highlighted winning line and a one-tap rematch. First player is X; the
   starter alternates each rematch.
-- **Wordle** 🔤 — guess-the-word race, 2–4 players. Everyone gets the same
-  secret 5-letter word and their own board of 6 guesses. Live progress of the
-  other players is shown. First to solve (fewest guesses) wins; if nobody
+- **Wordle** 🔤 — guess-the-word race, solo or 2–4 players. Everyone gets the
+  same secret 5-letter word and their own board of 6 guesses. Live progress of
+  the other players is shown. First to solve (fewest guesses) wins; if nobody
   solves, the word is revealed.
+- **Sudoku** 🔢 — fill a 9×9 grid, solo or 2–4 players. In multiplayer everyone
+  races the same puzzle; the first to complete it correctly wins and the
+  finished grid is revealed to everyone.
+
+**Solo mode:** Wordle and Sudoku can be played alone — pick the game, choose
+"Play solo", and you start immediately (no room or second player needed).
 
 ## How a room works
 

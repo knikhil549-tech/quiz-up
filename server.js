@@ -23,12 +23,26 @@ const REVEAL_SECONDS = 5;
 const WORDLE_MAX_GUESSES = 6;
 const WORDLE_SECONDS = 180; // round cap so a stalled player can't hang the game
 
-// Games and their player limits.
+// Sudoku tuning.
+const SUDOKU_HOLES = 45; // blanks to remove from a full grid (medium difficulty)
+const SUDOKU_SECONDS = 600; // multiplayer round cap
+
+// Games and their player limits. `solo: true` means the game can be played
+// alone (a one-player room that starts immediately, no lobby).
 const GAMES = {
   quiz: { min: 2, max: 4, name: 'Quiz Up' },
   ttt: { min: 2, max: 2, name: 'Tic Tac Toe' },
-  wordle: { min: 2, max: 4, name: 'Wordle' },
+  wordle: { min: 2, max: 4, name: 'Wordle', solo: true },
+  sudoku: { min: 2, max: 4, name: 'Sudoku', solo: true },
 };
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 function limits(type) {
   return GAMES[type] || GAMES.quiz;
 }
@@ -338,11 +352,142 @@ function endWordle(room) {
   broadcastWordle(room, true);
 }
 
+// ========================= SUDOKU =========================
+
+function makeSolvedGrid() {
+  const g = Array(81).fill(0);
+  function ok(i, val) {
+    const r = Math.floor(i / 9);
+    const c = i % 9;
+    for (let k = 0; k < 9; k++) {
+      if (g[r * 9 + k] === val) return false;
+      if (g[k * 9 + c] === val) return false;
+    }
+    const br = Math.floor(r / 3) * 3;
+    const bc = Math.floor(c / 3) * 3;
+    for (let a = 0; a < 3; a++) {
+      for (let b = 0; b < 3; b++) {
+        if (g[(br + a) * 9 + (bc + b)] === val) return false;
+      }
+    }
+    return true;
+  }
+  function fill(i) {
+    if (i >= 81) return true;
+    if (g[i] !== 0) return fill(i + 1);
+    const nums = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    for (const n of nums) {
+      if (ok(i, n)) {
+        g[i] = n;
+        if (fill(i + 1)) return true;
+        g[i] = 0;
+      }
+    }
+    return false;
+  }
+  fill(0);
+  return g;
+}
+
+function makePuzzle(solution, holes) {
+  const p = solution.slice();
+  const idx = shuffle([...Array(81).keys()]);
+  for (let k = 0; k < holes && k < idx.length; k++) p[idx[k]] = 0;
+  return p;
+}
+
+function sudokuComplete(board) {
+  if (!Array.isArray(board) || board.length !== 81) return false;
+  for (let i = 0; i < 81; i++) {
+    if (!Number.isInteger(board[i]) || board[i] < 1 || board[i] > 9) return false;
+  }
+  for (let u = 0; u < 9; u++) {
+    const row = new Set();
+    const col = new Set();
+    const box = new Set();
+    for (let k = 0; k < 9; k++) {
+      row.add(board[u * 9 + k]);
+      col.add(board[k * 9 + u]);
+      const br = Math.floor(u / 3) * 3 + Math.floor(k / 3);
+      const bc = (u % 3) * 3 + (k % 3);
+      box.add(board[br * 9 + bc]);
+    }
+    if (row.size !== 9 || col.size !== 9 || box.size !== 9) return false;
+  }
+  return true;
+}
+
+function matchesGivens(board, puzzle) {
+  for (let i = 0; i < 81; i++) {
+    if (puzzle[i] !== 0 && board[i] !== puzzle[i]) return false;
+  }
+  return true;
+}
+
+function startSudoku(room) {
+  room.state = 'playing';
+  const solution = makeSolvedGrid();
+  const puzzle = makePuzzle(solution, SUDOKU_HOLES);
+  const givens = puzzle.filter((v) => v !== 0).length;
+  const boards = {};
+  room.players.forEach((p) => {
+    boards[p.id] = { solved: false, solvedAt: null, filled: givens };
+  });
+  room.game = {
+    type: 'sudoku',
+    puzzle,
+    solution,
+    givens,
+    boards,
+    solveSeq: 0,
+    winnerIds: [],
+    timer: null,
+  };
+  if (room.players.length > 1) {
+    room.game.timer = setTimeout(() => endSudoku(room), SUDOKU_SECONDS * 1000);
+  }
+  io.to(room.code).emit('sudoku:start', {
+    puzzle,
+    players: sudokuSummary(room),
+    state: room.state,
+  });
+}
+
+function sudokuSummary(room) {
+  const g = room.game;
+  return room.players.map((p) => {
+    const b = g.boards[p.id];
+    return {
+      id: p.id,
+      name: p.name,
+      filled: b ? b.filled : 0,
+      solved: b ? b.solved : false,
+    };
+  });
+}
+
+function endSudoku(room) {
+  const g = room.game;
+  if (!g) return;
+  if (g.timer) clearTimeout(g.timer);
+  room.state = 'over';
+  const solvers = room.players
+    .filter((p) => g.boards[p.id] && g.boards[p.id].solved)
+    .sort((a, b) => g.boards[a.id].solvedAt - g.boards[b.id].solvedAt);
+  g.winnerIds = solvers.length ? [solvers[0].id] : [];
+  io.to(room.code).emit('sudoku:over', {
+    players: sudokuSummary(room),
+    winnerIds: g.winnerIds,
+    solution: g.solution,
+  });
+}
+
 // ========================= DISPATCH =========================
 
 function launch(room, categories) {
   if (room.gameType === 'ttt') return startTtt(room);
   if (room.gameType === 'wordle') return startWordle(room);
+  if (room.gameType === 'sudoku') return startSudoku(room);
   const cats = Array.isArray(categories)
     ? categories.filter((c) => typeof c === 'string')
     : null;
@@ -384,6 +529,28 @@ io.on('connection', (socket) => {
 
     if (cb) cb({ ok: true, playerId: socket.id, joinUrl, qr, ...lobbyState(room) });
     broadcastLobby(room);
+  });
+
+  // Solo play: a one-player room that starts immediately, no lobby.
+  socket.on('createSolo', ({ gameType } = {}, cb) => {
+    if (!GAMES[gameType] || !GAMES[gameType].solo)
+      return cb && cb({ ok: false, error: 'That game has no solo mode' });
+    const code = makeCode();
+    const room = {
+      code,
+      hostId: socket.id,
+      players: [],
+      state: 'lobby',
+      gameType,
+      game: null,
+      solo: true,
+    };
+    rooms.set(code, room);
+    room.players.push({ id: socket.id, name: 'You', score: 0 });
+    socket.join(code);
+    socket.data.roomCode = code;
+    if (cb) cb({ ok: true, playerId: socket.id, gameType });
+    launch(room);
   });
 
   socket.on('joinRoom', ({ code, name } = {}, cb) => {
@@ -440,9 +607,9 @@ io.on('connection', (socket) => {
     if (!room) return cb && cb({ ok: false, error: 'Room no longer exists' });
     if (socket.id !== room.hostId)
       return cb && cb({ ok: false, error: 'Only the host can restart' });
-    const lim = limits(room.gameType);
-    if (room.players.length < lim.min)
-      return cb && cb({ ok: false, error: `Need at least ${lim.min} players` });
+    const min = room.solo ? 1 : limits(room.gameType).min;
+    if (room.players.length < min)
+      return cb && cb({ ok: false, error: `Need at least ${min} players` });
     clearRoomTimer(room);
     if (cb) cb({ ok: true });
     launch(room);
@@ -535,6 +702,35 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ---- Sudoku ----
+  socket.on('sudoku:progress', ({ filled } = {}) => {
+    const room = rooms.get(socket.data.roomCode);
+    const g = room && room.game;
+    if (!g || g.type !== 'sudoku' || room.state !== 'playing') return;
+    const b = g.boards[socket.id];
+    if (!b) return;
+    if (typeof filled === 'number') b.filled = Math.max(0, Math.min(81, filled | 0));
+    io.to(room.code).emit('sudoku:progress', { players: sudokuSummary(room) });
+  });
+
+  socket.on('sudoku:submit', ({ board } = {}, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    const g = room && room.game;
+    if (!g || g.type !== 'sudoku' || room.state !== 'playing')
+      return cb && cb({ ok: false });
+    const b = g.boards[socket.id];
+    if (!b || b.solved) return cb && cb({ ok: false });
+    if (matchesGivens(board, g.puzzle) && sudokuComplete(board)) {
+      b.solved = true;
+      b.filled = 81;
+      b.solvedAt = ++g.solveSeq;
+      if (cb) cb({ ok: true, solved: true });
+      endSudoku(room); // first correct solve wins the race
+    } else {
+      if (cb) cb({ ok: false, error: 'Not solved yet — check for mistakes' });
+    }
+  });
+
   socket.on('leaveRoom', () => handleLeave());
   socket.on('disconnect', () => handleLeave());
 
@@ -579,6 +775,9 @@ io.on('connection', (socket) => {
       } else {
         broadcastWordle(room);
       }
+    } else if (room.gameType === 'sudoku' && room.game) {
+      delete room.game.boards[socket.id];
+      io.to(room.code).emit('sudoku:progress', { players: sudokuSummary(room) });
     }
   }
 });

@@ -5,6 +5,7 @@
   const $ = (id) => document.getElementById(id);
   const screens = {
     home: $("screen-home"),
+    mode: $("screen-mode"),
     name: $("screen-name"),
     lobby: $("screen-lobby"),
     question: $("screen-question"),
@@ -12,7 +13,9 @@
     results: $("screen-results"),
     ttt: $("screen-ttt"),
     wordle: $("screen-wordle"),
+    sudoku: $("screen-sudoku"),
   };
+  const SOLO_GAMES = new Set(["wordle", "sudoku"]);
   function show(name) {
     Object.values(screens).forEach((s) => s.classList.remove("active"));
     screens[name].classList.add("active");
@@ -35,13 +38,18 @@
     selectedCats: null,
     // wordle
     wordle: { input: "", lastCount: 0, over: false },
+    // sudoku
+    sudoku: null,
   };
 
   const GAME_LIST = [
     { type: "quiz", icon: "🧠", name: "Quiz Up" },
     { type: "ttt", icon: "⭕", name: "Tic Tac Toe" },
     { type: "wordle", icon: "🔤", name: "Wordle" },
+    { type: "sudoku", icon: "🔢", name: "Sudoku" },
   ];
+  const GAME_ICON = { quiz: "🧠", ttt: "⭕", wordle: "🔤", sudoku: "🔢" };
+  const GAME_NAME = { quiz: "Quiz Up", ttt: "Tic Tac Toe", wordle: "Wordle", sudoku: "Sudoku" };
 
   const params = new URLSearchParams(location.search);
   const linkCode = (params.get("room") || "").toUpperCase().trim();
@@ -50,18 +58,49 @@
   document.querySelectorAll(".game-card").forEach((card) => {
     card.addEventListener("click", () => {
       ensureAudio();
-      state.mode = "create";
-      state.pendingGame = card.getAttribute("data-game") || "quiz";
+      const game = card.getAttribute("data-game") || "quiz";
+      state.pendingGame = game;
       state.pendingCode = null;
-      const label = card.querySelector(".gc-name").textContent;
-      $("name-title").textContent = "Hosting " + label;
-      $("name-sub").textContent = "Pick a name your friends will recognise.";
-      $("input-name").value = "";
-      $("name-error").textContent = "";
-      show("name");
-      $("input-name").focus();
+      if (SOLO_GAMES.has(game)) {
+        // Let the player choose solo or multiplayer.
+        $("mode-icon").textContent = GAME_ICON[game] || "🎮";
+        $("mode-title").textContent = GAME_NAME[game] || "Play";
+        $("mode-error").textContent = "";
+        show("mode");
+      } else {
+        goToNameForCreate(game);
+      }
     });
   });
+
+  function goToNameForCreate(game) {
+    state.mode = "create";
+    state.pendingGame = game;
+    $("name-title").textContent = "Hosting " + (GAME_NAME[game] || "game");
+    $("name-sub").textContent = "Pick a name your friends will recognise.";
+    $("input-name").value = "";
+    $("name-error").textContent = "";
+    show("name");
+    $("input-name").focus();
+  }
+
+  // ============ MODE (solo vs friends) ============
+  $("btn-mode-solo").addEventListener("click", () => {
+    ensureAudio();
+    $("mode-error").textContent = "";
+    socket.emit("createSolo", { gameType: state.pendingGame }, (res) => {
+      if (!res || !res.ok) {
+        $("mode-error").textContent = (res && res.error) || "Could not start.";
+        return;
+      }
+      state.myId = res.playerId;
+      state.gameType = res.gameType || state.pendingGame;
+      state.room = { hostId: state.myId, gameType: state.gameType, solo: true };
+      // The game's own state event will switch to the right screen.
+    });
+  });
+  $("btn-mode-friends").addEventListener("click", () => goToNameForCreate(state.pendingGame));
+  $("btn-mode-back").addEventListener("click", () => show("home"));
 
   $("btn-join").addEventListener("click", () => tryJoinFromHome());
   $("input-code").addEventListener("keydown", (e) => {
@@ -144,6 +183,7 @@
   $("btn-results-leave").addEventListener("click", leaveToHome);
   $("btn-ttt-leave").addEventListener("click", leaveToHome);
   $("btn-wordle-leave").addEventListener("click", leaveToHome);
+  $("btn-sudoku-leave").addEventListener("click", leaveToHome);
   function leaveToHome() {
     socket.emit("leaveRoom");
     location.href = location.origin;
@@ -647,6 +687,222 @@
     if (e.key === "Enter") wordleKey("enter");
     else if (e.key === "Backspace") wordleKey("back");
     else if (/^[a-zA-Z]$/.test(e.key)) wordleKey(e.key.toLowerCase());
+  });
+
+  // ============ SUDOKU ============
+  socket.on("sudoku:start", (d) => {
+    state.sudoku = {
+      puzzle: d.puzzle,
+      board: d.puzzle.slice(),
+      given: d.puzzle.map((v) => v !== 0),
+      selected: null,
+      over: false,
+      players: d.players || [],
+      winnerIds: null,
+      solution: null,
+    };
+    $("sudoku-msg").textContent = "";
+    renderSudoku();
+    show("sudoku");
+  });
+
+  socket.on("sudoku:progress", (d) => {
+    if (!state.sudoku) return;
+    state.sudoku.players = d.players || [];
+    if (screens.sudoku.classList.contains("active")) renderSudoku();
+  });
+
+  socket.on("sudoku:over", (d) => {
+    const s = state.sudoku;
+    if (!s) return;
+    s.over = true;
+    s.players = d.players || s.players;
+    s.winnerIds = d.winnerIds || [];
+    s.solution = d.solution || null;
+    if (s.solution) s.board = s.solution.slice(); // reveal the answer
+    renderSudoku();
+    if (s.winnerIds.includes(state.myId)) celebrate();
+    show("sudoku");
+  });
+
+  function sudokuConflicts(board) {
+    const bad = new Set();
+    function scan(cells) {
+      const seen = {};
+      for (const i of cells) {
+        const v = board[i];
+        if (!v) continue;
+        if (seen[v] !== undefined) {
+          bad.add(i);
+          bad.add(seen[v]);
+        } else seen[v] = i;
+      }
+    }
+    for (let u = 0; u < 9; u++) {
+      const row = [];
+      const col = [];
+      const box = [];
+      for (let k = 0; k < 9; k++) {
+        row.push(u * 9 + k);
+        col.push(k * 9 + u);
+        const br = Math.floor(u / 3) * 3 + Math.floor(k / 3);
+        const bc = (u % 3) * 3 + (k % 3);
+        box.push(br * 9 + bc);
+      }
+      scan(row);
+      scan(col);
+      scan(box);
+    }
+    return bad;
+  }
+
+  function renderSudoku() {
+    const s = state.sudoku;
+    if (!s) return;
+    const filled = s.board.filter((v) => v !== 0).length;
+    $("sudoku-status").textContent = filled + " / 81";
+    const conflicts = s.over ? new Set() : sudokuConflicts(s.board);
+
+    const grid = $("sudoku-grid");
+    grid.innerHTML = "";
+    for (let i = 0; i < 81; i++) {
+      const r = Math.floor(i / 9);
+      const c = i % 9;
+      const cell = document.createElement("button");
+      cell.className = "sudoku-cell";
+      if (s.given[i]) cell.classList.add("given");
+      if (i === s.selected) cell.classList.add("sel");
+      if (conflicts.has(i)) cell.classList.add("bad");
+      if (c % 3 === 2 && c !== 8) cell.classList.add("br");
+      if (r % 3 === 2 && r !== 8) cell.classList.add("bb");
+      cell.textContent = s.board[i] ? s.board[i] : "";
+      if (!s.given[i] && !s.over) {
+        cell.addEventListener("click", () => {
+          s.selected = i;
+          renderSudoku();
+        });
+      } else {
+        cell.disabled = true;
+      }
+      grid.append(cell);
+    }
+
+    const pad = $("sudoku-pad");
+    pad.innerHTML = "";
+    for (let n = 1; n <= 9; n++) {
+      const b = document.createElement("button");
+      b.className = "sudoku-key";
+      b.textContent = String(n);
+      b.addEventListener("click", () => placeSudoku(n));
+      pad.append(b);
+    }
+    const er = document.createElement("button");
+    er.className = "sudoku-key erase";
+    er.textContent = "⌫";
+    er.addEventListener("click", () => placeSudoku(0));
+    pad.append(er);
+    pad.classList.toggle("hidden", s.over);
+    $("btn-sudoku-check").classList.toggle("hidden", s.over);
+
+    const opps = (s.players || []).filter((p) => p.id !== state.myId);
+    $("sudoku-opps").classList.toggle("hidden", opps.length === 0);
+    const list = $("sudoku-opp-list");
+    list.innerHTML = "";
+    opps.forEach((o) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "bname";
+      name.textContent = o.name;
+      const pts = document.createElement("span");
+      pts.className = "pts";
+      pts.textContent = o.solved ? "✅ solved" : o.filled + " / 81";
+      li.append(name, pts);
+      list.append(li);
+    });
+
+    const banner = $("sudoku-banner");
+    if (s.over) {
+      banner.classList.remove("hidden");
+      const won = s.winnerIds && s.winnerIds.includes(state.myId);
+      const any = s.winnerIds && s.winnerIds.length > 0;
+      $("sudoku-banner-icon").textContent = won ? "🏆" : any ? "🙁" : "⏳";
+      const title = $("sudoku-banner-title");
+      if (won) {
+        title.textContent = "You solved it!";
+        title.className = "ok-text";
+      } else if (any) {
+        const w = (opps.find((o) => o.id === s.winnerIds[0]) || {}).name || "Someone";
+        title.textContent = w + " solved it first";
+        title.className = "";
+      } else {
+        title.textContent = "Time's up";
+        title.className = "";
+      }
+      $("sudoku-banner-sub").textContent = s.solution ? "Here's the finished grid." : "";
+    } else {
+      banner.classList.add("hidden");
+    }
+
+    const amHost = state.room && state.room.hostId === state.myId;
+    $("btn-sudoku-rematch").classList.toggle("hidden", !(s.over && amHost));
+    $("sudoku-waiting").classList.toggle("hidden", !(s.over && !amHost));
+  }
+
+  function placeSudoku(n) {
+    const s = state.sudoku;
+    if (!s || s.over) return;
+    if (s.selected == null || s.given[s.selected]) return;
+    s.board[s.selected] = n === 0 ? 0 : n;
+    $("sudoku-msg").textContent = "";
+    renderSudoku();
+    reportSudokuProgress();
+  }
+
+  let sudokuProgTimer = null;
+  function reportSudokuProgress() {
+    if (sudokuProgTimer) return;
+    sudokuProgTimer = setTimeout(() => {
+      sudokuProgTimer = null;
+      if (!state.sudoku) return;
+      socket.emit("sudoku:progress", {
+        filled: state.sudoku.board.filter((v) => v !== 0).length,
+      });
+    }, 400);
+  }
+
+  $("btn-sudoku-check").addEventListener("click", () => {
+    const s = state.sudoku;
+    if (!s || s.over) return;
+    if (s.board.some((v) => v === 0)) {
+      $("sudoku-msg").textContent = "Fill every cell first.";
+      return;
+    }
+    socket.emit("sudoku:submit", { board: s.board }, (res) => {
+      if (!res || !res.ok) {
+        $("sudoku-msg").textContent = (res && res.error) || "Not solved yet — check for mistakes.";
+      }
+    });
+  });
+
+  $("btn-sudoku-rematch").addEventListener("click", () => hostRematch($("sudoku-msg")));
+
+  // Physical keyboard for Sudoku (laptops).
+  document.addEventListener("keydown", (e) => {
+    if (!screens.sudoku.classList.contains("active")) return;
+    const s = state.sudoku;
+    if (!s || s.over) return;
+    if (/^[1-9]$/.test(e.key)) placeSudoku(parseInt(e.key, 10));
+    else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") placeSudoku(0);
+    else if (s.selected != null && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+      let i = s.selected;
+      if (e.key === "ArrowUp" && i >= 9) i -= 9;
+      if (e.key === "ArrowDown" && i < 72) i += 9;
+      if (e.key === "ArrowLeft" && i % 9 !== 0) i -= 1;
+      if (e.key === "ArrowRight" && i % 9 !== 8) i += 1;
+      s.selected = i;
+      renderSudoku();
+      e.preventDefault();
+    }
   });
 
   // ============ celebration: sound + confetti ============

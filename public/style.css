@@ -368,6 +368,73 @@ h2 {
   border-color: var(--accent);
 }
 
+/* ===== Sudoku ===== */
+.sudoku-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 0;
+  max-width: 360px;
+  margin: 0 auto 14px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.sudoku-cell {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+}
+.sudoku-cell.given {
+  color: var(--ink);
+  font-weight: 800;
+  background: #f4f5fb;
+  cursor: default;
+}
+.sudoku-cell.sel {
+  background: #eeecff;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.sudoku-cell.bad {
+  color: var(--danger);
+}
+.sudoku-cell.br {
+  border-right: 2px solid var(--ink);
+}
+.sudoku-cell.bb {
+  border-bottom: 2px solid var(--ink);
+}
+.sudoku-pad {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  max-width: 360px;
+  margin: 0 auto 14px;
+}
+.sudoku-key {
+  padding: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.sudoku-key:active {
+  transform: scale(0.96);
+}
+.sudoku-key.erase {
+  color: var(--muted);
+}
+
 /* ===== Wordle ===== */
 .wordle-head {
   display: flex;
@@ -464,11 +531,13 @@ h2 {
 /* ===== Lobby: game switcher ===== */
 .game-switch {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
 }
 .gs-btn {
-  flex: 1;
+  flex: 1 1 22%;
+  min-width: 68px;
   display: flex;
   flex-direction: column;
   align-items: center;

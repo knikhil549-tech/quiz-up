@@ -40,7 +40,15 @@
             <span class="gc-icon">🔤</span>
             <span class="gc-body">
               <span class="gc-name">Wordle</span>
-              <span class="gc-desc">Guess-the-word race · 2–4 players</span>
+              <span class="gc-desc">Guess-the-word race · solo or 2–4</span>
+            </span>
+            <span class="gc-go">›</span>
+          </button>
+          <button class="game-card" data-game="sudoku">
+            <span class="gc-icon">🔢</span>
+            <span class="gc-body">
+              <span class="gc-name">Sudoku</span>
+              <span class="gc-desc">Fill the grid · solo or 2–4</span>
             </span>
             <span class="gc-go">›</span>
           </button>
@@ -61,6 +69,22 @@
             <button id="btn-join" class="btn">Join</button>
           </div>
           <p id="home-error" class="error"></p>
+        </div>
+      </section>
+
+      <!-- MODE (solo vs friends, for solo-capable games) -->
+      <section id="screen-mode" class="screen">
+        <div class="brand">
+          <div id="mode-icon" class="moon">🎮</div>
+          <h1 id="mode-title">Play</h1>
+          <p class="tagline">How do you want to play?</p>
+        </div>
+        <div class="card">
+          <button id="btn-mode-solo" class="btn primary">Play solo</button>
+          <div class="divider"><span>or</span></div>
+          <button id="btn-mode-friends" class="btn">Play with friends</button>
+          <p id="mode-error" class="error"></p>
+          <button id="btn-mode-back" class="btn ghost">Back</button>
         </div>
       </section>
 
@@ -225,6 +249,37 @@
             Waiting for the host to start a rematch…
           </p>
           <button id="btn-wordle-leave" class="btn ghost small">Leave</button>
+        </div>
+      </section>
+
+      <!-- SUDOKU -->
+      <section id="screen-sudoku" class="screen">
+        <div class="wordle-head">
+          <span class="muted small">Fill every row, column &amp; box with 1–9</span>
+          <span id="sudoku-status" class="pill">0 / 81</span>
+        </div>
+        <div id="sudoku-grid" class="sudoku-grid"></div>
+        <div id="sudoku-pad" class="sudoku-pad"></div>
+        <p id="sudoku-msg" class="muted center small"></p>
+        <button id="btn-sudoku-check" class="btn primary">Check</button>
+
+        <div id="sudoku-banner" class="card center hidden">
+          <div id="sudoku-banner-icon" class="reveal-icon">🎉</div>
+          <h2 id="sudoku-banner-title"></h2>
+          <p id="sudoku-banner-sub" class="muted"></p>
+        </div>
+
+        <div id="sudoku-opps" class="card hidden">
+          <h2>Players</h2>
+          <ul id="sudoku-opp-list" class="board"></ul>
+        </div>
+
+        <div class="lobby-actions">
+          <button id="btn-sudoku-rematch" class="btn primary hidden">New puzzle</button>
+          <p id="sudoku-waiting" class="muted center hidden">
+            Waiting for the host to start a new puzzle…
+          </p>
+          <button id="btn-sudoku-leave" class="btn ghost small">Leave</button>
         </div>
       </section>
     </div>
