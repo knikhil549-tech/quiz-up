@@ -6,6 +6,7 @@ const QRCode = require('qrcode');
 const { CATEGORIES, pickQuestions } = require('./questions');
 const history = require('./history');
 const { pickWord } = require('./words');
+const { VALID: WORDLE_DICT } = require('./wordle-dict');
 
 const app = express();
 const server = http.createServer(app);
@@ -23,8 +24,14 @@ const REVEAL_SECONDS = 5;
 const WORDLE_MAX_GUESSES = 6;
 const WORDLE_SECONDS = 180; // round cap so a stalled player can't hang the game
 
-// Sudoku tuning.
-const SUDOKU_HOLES = 45; // blanks to remove from a full grid (medium difficulty)
+// Sudoku tuning. Blanks removed from a full grid per difficulty.
+const SUDOKU_HOLES = { easy: 38, medium: 46, hard: 52 };
+function holesFor(d) {
+  return SUDOKU_HOLES[d] || SUDOKU_HOLES.medium;
+}
+function cleanDifficulty(d) {
+  return SUDOKU_HOLES[d] ? d : 'medium';
+}
 const SUDOKU_SECONDS = 600; // multiplayer round cap
 
 // Games and their player limits. `solo: true` means the game can be played
@@ -81,6 +88,7 @@ function lobbyState(room) {
     minPlayers: lim.min,
     maxPlayers: lim.max,
     categories: room.gameType === 'quiz' ? CATEGORIES : null,
+    difficulty: room.difficulty || 'medium',
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -389,10 +397,63 @@ function makeSolvedGrid() {
   return g;
 }
 
+// Count solutions of a partial grid, stopping once we reach `cap`.
+function countSolutions(grid, cap) {
+  const g = grid.slice();
+  let count = 0;
+  function ok(i, val) {
+    const r = Math.floor(i / 9);
+    const c = i % 9;
+    for (let k = 0; k < 9; k++) {
+      if (g[r * 9 + k] === val) return false;
+      if (g[k * 9 + c] === val) return false;
+    }
+    const br = Math.floor(r / 3) * 3;
+    const bc = Math.floor(c / 3) * 3;
+    for (let a = 0; a < 3; a++) {
+      for (let b = 0; b < 3; b++) {
+        if (g[(br + a) * 9 + (bc + b)] === val) return false;
+      }
+    }
+    return true;
+  }
+  function rec(i) {
+    if (count >= cap) return;
+    if (i >= 81) {
+      count += 1;
+      return;
+    }
+    if (g[i] !== 0) return rec(i + 1);
+    for (let v = 1; v <= 9; v++) {
+      if (ok(i, v)) {
+        g[i] = v;
+        rec(i + 1);
+        g[i] = 0;
+        if (count >= cap) return;
+      }
+    }
+  }
+  rec(0);
+  return count;
+}
+
+// Remove cells one at a time, keeping the puzzle uniquely solvable, until we
+// hit the target number of holes (or can't remove more without ambiguity).
 function makePuzzle(solution, holes) {
   const p = solution.slice();
-  const idx = shuffle([...Array(81).keys()]);
-  for (let k = 0; k < holes && k < idx.length; k++) p[idx[k]] = 0;
+  const order = shuffle([...Array(81).keys()]);
+  let removed = 0;
+  for (const i of order) {
+    if (removed >= holes) break;
+    if (p[i] === 0) continue;
+    const backup = p[i];
+    p[i] = 0;
+    if (countSolutions(p, 2) === 1) {
+      removed += 1;
+    } else {
+      p[i] = backup; // removing this cell would make the puzzle ambiguous
+    }
+  }
   return p;
 }
 
@@ -427,7 +488,7 @@ function matchesGivens(board, puzzle) {
 function startSudoku(room) {
   room.state = 'playing';
   const solution = makeSolvedGrid();
-  const puzzle = makePuzzle(solution, SUDOKU_HOLES);
+  const puzzle = makePuzzle(solution, holesFor(room.difficulty));
   const givens = puzzle.filter((v) => v !== 0).length;
   const boards = {};
   room.players.forEach((p) => {
@@ -503,7 +564,7 @@ function clearRoomTimer(room) {
 io.on('connection', (socket) => {
   socket.data.roomCode = null;
 
-  socket.on('createRoom', async ({ name, gameType } = {}, cb) => {
+  socket.on('createRoom', async ({ name, gameType, difficulty } = {}, cb) => {
     const type = GAMES[gameType] ? gameType : 'quiz';
     const code = makeCode();
     const room = {
@@ -513,6 +574,7 @@ io.on('connection', (socket) => {
       state: 'lobby',
       gameType: type,
       game: null,
+      difficulty: cleanDifficulty(difficulty),
     };
     rooms.set(code, room);
     room.players.push({ id: socket.id, name: cleanName(name, 'Host'), score: 0 });
@@ -532,7 +594,7 @@ io.on('connection', (socket) => {
   });
 
   // Solo play: a one-player room that starts immediately, no lobby.
-  socket.on('createSolo', ({ gameType } = {}, cb) => {
+  socket.on('createSolo', ({ gameType, difficulty } = {}, cb) => {
     if (!GAMES[gameType] || !GAMES[gameType].solo)
       return cb && cb({ ok: false, error: 'That game has no solo mode' });
     const code = makeCode();
@@ -544,6 +606,7 @@ io.on('connection', (socket) => {
       gameType,
       game: null,
       solo: true,
+      difficulty: cleanDifficulty(difficulty),
     };
     rooms.set(code, room);
     room.players.push({ id: socket.id, name: 'You', score: 0 });
@@ -597,6 +660,18 @@ io.on('connection', (socket) => {
     if (!GAMES[gameType]) return cb && cb({ ok: false, error: 'Unknown game' });
 
     room.gameType = gameType;
+    if (cb) cb({ ok: true });
+    broadcastLobby(room);
+  });
+
+  // Host sets the Sudoku difficulty for the room (lobby only).
+  socket.on('setSudokuDifficulty', ({ difficulty } = {}, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room) return cb && cb({ ok: false });
+    if (socket.id !== room.hostId)
+      return cb && cb({ ok: false, error: 'Only the host can change difficulty' });
+    if (room.state !== 'lobby') return cb && cb({ ok: false });
+    room.difficulty = cleanDifficulty(difficulty);
     if (cb) cb({ ok: true });
     broadcastLobby(room);
   });
@@ -683,6 +758,7 @@ io.on('connection', (socket) => {
     if (!b || b.done) return cb && cb({ ok: false });
     word = (word || '').toString().toLowerCase();
     if (!/^[a-z]{5}$/.test(word)) return cb && cb({ ok: false, error: 'Enter 5 letters' });
+    if (!WORDLE_DICT.has(word)) return cb && cb({ ok: false, error: 'Not in word list' });
 
     const result = scoreGuess(word, g.secret);
     b.guesses.push({ word, result });

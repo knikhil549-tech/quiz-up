@@ -80,6 +80,10 @@
           <p class="tagline">How do you want to play?</p>
         </div>
         <div class="card">
+          <div id="mode-diff" class="mode-diff hidden">
+            <span class="muted small">Difficulty</span>
+            <div id="mode-diff-list" class="diff-list"></div>
+          </div>
           <button id="btn-mode-solo" class="btn primary">Play solo</button>
           <div class="divider"><span>or</span></div>
           <button id="btn-mode-friends" class="btn">Play with friends</button>
@@ -133,6 +137,13 @@
           </div>
           <p class="muted small">Switch games without leaving the room.</p>
           <div id="switch-list" class="game-switch"></div>
+        </div>
+
+        <div id="diff-card" class="card hidden">
+          <div class="players-head">
+            <h2>Difficulty</h2>
+          </div>
+          <div id="diff-list" class="diff-list"></div>
         </div>
 
         <div id="cat-card" class="card hidden">

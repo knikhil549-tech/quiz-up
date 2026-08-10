@@ -15,12 +15,15 @@ Pick one on the home screen:
   highlighted winning line and a one-tap rematch. First player is X; the
   starter alternates each rematch.
 - **Wordle** 🔤 — guess-the-word race, solo or 2–4 players. Everyone gets the
-  same secret 5-letter word and their own board of 6 guesses. Live progress of
-  the other players is shown. First to solve (fewest guesses) wins; if nobody
+  same secret 5-letter word and their own board of 6 guesses. Guesses are
+  checked against a real word list (built from the system dictionary), so only
+  actual words are accepted. First to solve (fewest guesses) wins; if nobody
   solves, the word is revealed.
-- **Sudoku** 🔢 — fill a 9×9 grid, solo or 2–4 players. In multiplayer everyone
-  races the same puzzle; the first to complete it correctly wins and the
-  finished grid is revealed to everyone.
+- **Sudoku** 🔢 — fill a 9×9 grid, solo or 2–4 players, with **Easy / Medium /
+  Hard** difficulty (chosen on the solo screen or by the host in the lobby).
+  Puzzles are generated with a guaranteed unique solution. In multiplayer
+  everyone races the same puzzle; the first to complete it correctly wins and
+  the finished grid is revealed to everyone.
 
 **Solo mode:** Wordle and Sudoku can be played alone — pick the game, choose
 "Play solo", and you start immediately (no room or second player needed).
@@ -61,6 +64,7 @@ machine.) When deployed to a public host, just share that URL instead.
   for each game (quiz, tic tac toe, wordle).
 - `questions.js` — the quiz bank grouped by category.
 - `words.js` — the Wordle secret-word list.
+- `wordle-dict.js` — auto-generated list of valid 5-letter guesses (real words).
 - `history.js` — tracks how many times each quiz question has been shown so the
   picker favours the least-shown ones.
 - `public/` — the single-page client (`index.html`, `style.css`, `app.js`).

@@ -40,7 +40,26 @@
     wordle: { input: "", lastCount: 0, over: false },
     // sudoku
     sudoku: null,
+    sudokuDifficulty: "medium",
   };
+
+  const DIFF_LIST = [
+    { key: "easy", label: "Easy" },
+    { key: "medium", label: "Medium" },
+    { key: "hard", label: "Hard" },
+  ];
+
+  // Renders an Easy/Medium/Hard segmented control into `el`.
+  function renderDiffList(el, current, onPick) {
+    el.innerHTML = "";
+    DIFF_LIST.forEach((d) => {
+      const btn = document.createElement("button");
+      btn.className = "diff-btn" + (d.key === current ? " on" : "");
+      btn.textContent = d.label;
+      btn.addEventListener("click", () => onPick(d.key));
+      el.append(btn);
+    });
+  }
 
   const GAME_LIST = [
     { type: "quiz", icon: "🧠", name: "Quiz Up" },
@@ -66,6 +85,13 @@
         $("mode-icon").textContent = GAME_ICON[game] || "🎮";
         $("mode-title").textContent = GAME_NAME[game] || "Play";
         $("mode-error").textContent = "";
+        const diffWrap = $("mode-diff");
+        if (game === "sudoku") {
+          renderModeDiff();
+          diffWrap.classList.remove("hidden");
+        } else {
+          diffWrap.classList.add("hidden");
+        }
         show("mode");
       } else {
         goToNameForCreate(game);
@@ -85,10 +111,17 @@
   }
 
   // ============ MODE (solo vs friends) ============
+  function renderModeDiff() {
+    renderDiffList($("mode-diff-list"), state.sudokuDifficulty, (key) => {
+      state.sudokuDifficulty = key;
+      renderModeDiff();
+    });
+  }
+
   $("btn-mode-solo").addEventListener("click", () => {
     ensureAudio();
     $("mode-error").textContent = "";
-    socket.emit("createSolo", { gameType: state.pendingGame }, (res) => {
+    socket.emit("createSolo", { gameType: state.pendingGame, difficulty: state.sudokuDifficulty }, (res) => {
       if (!res || !res.ok) {
         $("mode-error").textContent = (res && res.error) || "Could not start.";
         return;
@@ -146,7 +179,11 @@
       return;
     }
     if (state.mode === "create") {
-      socket.emit("createRoom", { name, gameType: state.pendingGame }, onRoomJoined);
+      socket.emit(
+        "createRoom",
+        { name, gameType: state.pendingGame, difficulty: state.sudokuDifficulty },
+        onRoomJoined
+      );
     } else {
       socket.emit("joinRoom", { code: state.pendingCode, name }, onRoomJoined);
     }
@@ -280,6 +317,18 @@
       $("cat-card").classList.remove("hidden");
     } else {
       $("cat-card").classList.add("hidden");
+    }
+
+    // Difficulty only applies to Sudoku, and only the host chooses.
+    if (amHost && room.gameType === "sudoku") {
+      state.sudokuDifficulty = room.difficulty || state.sudokuDifficulty;
+      renderDiffList($("diff-list"), state.sudokuDifficulty, (key) => {
+        state.sudokuDifficulty = key;
+        socket.emit("setSudokuDifficulty", { difficulty: key }, () => {});
+      });
+      $("diff-card").classList.remove("hidden");
+    } else {
+      $("diff-card").classList.add("hidden");
     }
   }
 
