@@ -73,6 +73,14 @@
   const params = new URLSearchParams(location.search);
   const linkCode = (params.get("room") || "").toUpperCase().trim();
 
+  // Live count of people currently in a game, shown on the home screen.
+  socket.on("stats", (d) => {
+    const el = $("live-count");
+    if (!el) return;
+    const n = (d && d.players) || 0;
+    el.textContent = n > 0 ? "🟢 " + n + (n === 1 ? " player" : " players") + " in a game now" : "";
+  });
+
   // ============ HOME (launcher) ============
   document.querySelectorAll(".game-card").forEach((card) => {
     card.addEventListener("click", () => {

@@ -79,6 +79,13 @@ body {
   color: var(--muted);
   font-size: 15px;
 }
+.live-count {
+  margin: 10px 0 0;
+  min-height: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
 
 /* Card */
 .card {

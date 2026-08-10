@@ -106,6 +106,16 @@ function cleanName(name, fallback) {
   return n || fallback;
 }
 
+// Live stats for the home screen: how many people are in a room right now.
+function statsPayload() {
+  let players = 0;
+  for (const r of rooms.values()) players += r.players.length;
+  return { players, rooms: rooms.size };
+}
+function broadcastStats() {
+  io.emit('stats', statsPayload());
+}
+
 // ========================= QUIZ =========================
 
 function scoreboard(room) {
@@ -561,6 +571,7 @@ function clearRoomTimer(room) {
 
 io.on('connection', (socket) => {
   socket.data.roomCode = null;
+  socket.emit('stats', statsPayload()); // current count for the home screen
 
   socket.on('createRoom', async ({ name, gameType, difficulty } = {}, cb) => {
     const type = GAMES[gameType] ? gameType : 'quiz';
@@ -589,6 +600,7 @@ io.on('connection', (socket) => {
 
     if (cb) cb({ ok: true, playerId: socket.id, joinUrl, qr, ...lobbyState(room) });
     broadcastLobby(room);
+    broadcastStats();
   });
 
   // Solo play: a one-player room that starts immediately, no lobby.
@@ -612,6 +624,7 @@ io.on('connection', (socket) => {
     socket.data.roomCode = code;
     if (cb) cb({ ok: true, playerId: socket.id, gameType });
     launch(room);
+    broadcastStats();
   });
 
   socket.on('joinRoom', ({ code, name } = {}, cb) => {
@@ -630,6 +643,7 @@ io.on('connection', (socket) => {
 
     if (cb) cb({ ok: true, playerId: socket.id, ...lobbyState(room) });
     broadcastLobby(room);
+    broadcastStats();
   });
 
   socket.on('startGame', ({ categories } = {}, cb) => {
@@ -805,8 +819,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('leaveRoom', () => handleLeave());
-  socket.on('disconnect', () => handleLeave());
+  socket.on('leaveRoom', () => {
+    handleLeave();
+    broadcastStats();
+  });
+  socket.on('disconnect', () => {
+    handleLeave();
+    broadcastStats();
+  });
 
   function handleLeave() {
     const room = rooms.get(socket.data.roomCode);
