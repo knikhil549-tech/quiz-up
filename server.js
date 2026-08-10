@@ -32,7 +32,6 @@ function holesFor(d) {
 function cleanDifficulty(d) {
   return SUDOKU_HOLES[d] ? d : 'medium';
 }
-const SUDOKU_SECONDS = 600; // multiplayer round cap
 
 // Games and their player limits. `solo: true` means the game can be played
 // alone (a one-player room that starts immediately, no lobby).
@@ -504,9 +503,8 @@ function startSudoku(room) {
     winnerIds: [],
     timer: null,
   };
-  if (room.players.length > 1) {
-    room.game.timer = setTimeout(() => endSudoku(room), SUDOKU_SECONDS * 1000);
-  }
+  // No time limit: Sudoku runs until someone solves it (or everyone leaves),
+  // so players can take as long as they like, even in multiplayer.
   io.to(room.code).emit('sudoku:start', {
     puzzle,
     players: sudokuSummary(room),

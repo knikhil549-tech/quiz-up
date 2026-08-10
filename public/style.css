@@ -275,6 +275,47 @@ h2 {
 
 .lobby-actions {
   margin-top: 4px;
+  text-align: center;
+}
+/* Leave sits below other controls (keyboard, Back, etc.). Give it a clear gap
+   and a small centered target so a tap just under those controls can't hit it. */
+.lobby-actions .btn.ghost.small {
+  display: inline-block;
+  width: auto;
+  margin-top: 22px;
+  padding: 10px 30px;
+}
+
+/* Confirmation dialog */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 27, 46, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 10000;
+}
+.overlay .modal {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+.overlay .modal h2 {
+  margin: 0 0 8px;
+}
+.overlay .modal .btn {
+  margin-top: 12px;
+}
+.btn.danger-btn {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
 }
 
 /* ===== Home: game launcher ===== */

@@ -295,6 +295,16 @@
       </section>
     </div>
 
+    <!-- Confirm dialog (e.g. leaving a game) -->
+    <div id="confirm-overlay" class="overlay hidden">
+      <div class="modal">
+        <h2 id="confirm-title">Leave the game?</h2>
+        <p id="confirm-msg" class="muted">You'll drop out of this room.</p>
+        <button id="confirm-yes" class="btn danger-btn">Leave</button>
+        <button id="confirm-no" class="btn ghost">Stay</button>
+      </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="/app.js"></script>
   </body>

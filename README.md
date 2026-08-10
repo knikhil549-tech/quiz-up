@@ -97,3 +97,5 @@ Add or edit quiz questions in `questions.js` (each needs 4 options and a
 - If the host leaves, the crown passes to the next player automatically.
 - If a player leaves mid-game and there aren't enough left to continue, the room
   drops back to the lobby.
+- Leaving a game asks for confirmation first, so a stray tap won't drop you out.
+- Sudoku has no time limit — a round runs until someone solves it.

@@ -216,15 +216,31 @@
     });
   });
 
-  $("btn-leave").addEventListener("click", leaveToHome);
-  $("btn-results-leave").addEventListener("click", leaveToHome);
-  $("btn-ttt-leave").addEventListener("click", leaveToHome);
-  $("btn-wordle-leave").addEventListener("click", leaveToHome);
-  $("btn-sudoku-leave").addEventListener("click", leaveToHome);
+  $("btn-leave").addEventListener("click", askLeave);
+  $("btn-results-leave").addEventListener("click", askLeave);
+  $("btn-ttt-leave").addEventListener("click", askLeave);
+  $("btn-wordle-leave").addEventListener("click", askLeave);
+  $("btn-sudoku-leave").addEventListener("click", askLeave);
   function leaveToHome() {
     socket.emit("leaveRoom");
     location.href = location.origin;
   }
+
+  // Confirm before leaving so an accidental tap doesn't drop you out.
+  function askLeave() {
+    $("confirm-overlay").classList.remove("hidden");
+  }
+  $("confirm-no").addEventListener("click", () => {
+    $("confirm-overlay").classList.add("hidden");
+  });
+  $("confirm-yes").addEventListener("click", () => {
+    $("confirm-overlay").classList.add("hidden");
+    leaveToHome();
+  });
+  // Tapping the dimmed backdrop cancels too.
+  $("confirm-overlay").addEventListener("click", (e) => {
+    if (e.target === $("confirm-overlay")) $("confirm-overlay").classList.add("hidden");
+  });
 
   $("btn-copy").addEventListener("click", async () => {
     if (!state.joinUrl) return;
