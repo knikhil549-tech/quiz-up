@@ -1,8 +1,9 @@
 # Game Night — project guide
 
 No-signup, scan-to-play multiplayer party games. One host, others join by QR /
-4-letter code. Games: **Quiz Up**, **Tic Tac Toe**, **Wordle**, **Sudoku**
-(Wordle & Sudoku also have a solo mode).
+4-letter code. Games: **Quiz Up**, **Tic Tac Toe**, **Wordle**, **Sudoku**,
+**Word Scramble**, **Hangman** (all except Quiz Up and Tic Tac Toe also have a
+solo mode).
 
 ## Stack & layout
 - Node + **Express + Socket.IO**, vanilla-JS single-page client. No build step.
@@ -10,6 +11,7 @@ No-signup, scan-to-play multiplayer party games. One host, others join by QR /
   and the `GAMES` map (per-game `min`/`max`/`solo`) are at the top.
 - `questions.js` — quiz bank grouped by category · `words.js` — Wordle answers ·
   `wordle-dict.js` — valid-guess dictionary (auto-generated, see below) ·
+  `game-words.js` — word + hint bank for Word Scramble and Hangman ·
   `history.js` — quiz question show-counts (persisted to `data/`, gitignored).
 - `public/` — `index.html` (all screens), `app.js` (screen-routing client),
   `style.css`. Client routes by `state.gameType`; each screen is a `<section

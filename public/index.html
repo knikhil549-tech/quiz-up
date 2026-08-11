@@ -53,6 +53,22 @@
             </span>
             <span class="gc-go">›</span>
           </button>
+          <button class="game-card" data-game="scramble">
+            <span class="gc-icon">🔀</span>
+            <span class="gc-body">
+              <span class="gc-name">Word Scramble</span>
+              <span class="gc-desc">Unscramble the word · solo or 2–4</span>
+            </span>
+            <span class="gc-go">›</span>
+          </button>
+          <button class="game-card" data-game="hangman">
+            <span class="gc-icon">🔡</span>
+            <span class="gc-body">
+              <span class="gc-name">Hangman</span>
+              <span class="gc-desc">Guess the word letter by letter · solo or 2–4</span>
+            </span>
+            <span class="gc-go">›</span>
+          </button>
         </div>
 
         <div class="card">
@@ -292,6 +308,90 @@
             Waiting for the host to start a new puzzle…
           </p>
           <button id="btn-sudoku-leave" class="btn ghost small">Leave</button>
+        </div>
+      </section>
+
+      <!-- WORD SCRAMBLE -->
+      <section id="screen-scramble" class="screen">
+        <div class="q-topbar">
+          <span id="scramble-progress" class="pill">R1 / 6</span>
+          <span id="scramble-timer" class="timer">25</span>
+        </div>
+        <div class="timerbar"><div id="scramble-timerbar" class="timerbar-fill"></div></div>
+
+        <div class="card center scramble-card">
+          <p id="scramble-hint" class="muted small"></p>
+          <div id="scramble-letters" class="scramble-letters"></div>
+        </div>
+
+        <div id="scramble-answer-row" class="scramble-answer-row">
+          <input
+            id="scramble-input"
+            class="input"
+            placeholder="your answer"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+          <button id="scramble-submit" class="btn primary">Guess</button>
+        </div>
+        <p id="scramble-msg" class="muted center small"></p>
+
+        <div id="scramble-reveal" class="card center hidden">
+          <div id="scramble-reveal-icon" class="reveal-icon">💡</div>
+          <h2 id="scramble-reveal-word"></h2>
+          <p id="scramble-reveal-note" class="muted"></p>
+        </div>
+
+        <div id="scramble-banner" class="card center hidden">
+          <div id="scramble-banner-icon" class="reveal-icon">🏆</div>
+          <h2 id="scramble-banner-title"></h2>
+          <p id="scramble-banner-sub" class="muted"></p>
+        </div>
+
+        <div class="card">
+          <h2>Scores</h2>
+          <ul id="scramble-board" class="board"></ul>
+        </div>
+
+        <div class="lobby-actions">
+          <button id="btn-scramble-rematch" class="btn primary hidden">Play again</button>
+          <p id="scramble-waiting" class="muted center hidden">
+            Waiting for the host to start a new game…
+          </p>
+          <button id="btn-scramble-leave" class="btn ghost small">Leave</button>
+        </div>
+      </section>
+
+      <!-- HANGMAN -->
+      <section id="screen-hangman" class="screen">
+        <div class="wordle-head">
+          <span id="hangman-hint" class="muted small">Hint:</span>
+          <span id="hangman-lives" class="pill">6 ❤</span>
+        </div>
+        <div id="hangman-word" class="hangman-word"></div>
+        <p id="hangman-misses" class="muted center small"></p>
+        <p id="hangman-msg" class="muted center small"></p>
+
+        <div id="hangman-banner" class="card center hidden">
+          <div id="hangman-banner-icon" class="reveal-icon">🎉</div>
+          <h2 id="hangman-banner-title"></h2>
+          <p id="hangman-banner-sub" class="muted"></p>
+        </div>
+
+        <div id="hangman-opps" class="card hidden">
+          <h2>Players</h2>
+          <ul id="hangman-opp-list" class="board"></ul>
+        </div>
+
+        <div id="hangman-keyboard" class="wordle-keyboard"></div>
+
+        <div class="lobby-actions">
+          <button id="btn-hangman-rematch" class="btn primary hidden">Rematch</button>
+          <p id="hangman-waiting" class="muted center hidden">
+            Waiting for the host to start a rematch…
+          </p>
+          <button id="btn-hangman-leave" class="btn ghost small">Leave</button>
         </div>
       </section>
     </div>

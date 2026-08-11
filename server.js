@@ -7,6 +7,7 @@ const { CATEGORIES, pickQuestions } = require('./questions');
 const history = require('./history');
 const { pickWord } = require('./words');
 const { VALID: WORDLE_DICT } = require('./wordle-dict');
+const { pickGameWords, pickGameWord } = require('./game-words');
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +40,17 @@ const REVEAL_SECONDS = 5;
 const WORDLE_MAX_GUESSES = 6;
 const WORDLE_SECONDS = 180; // round cap so a stalled player can't hang the game
 
+// Word Scramble tuning.
+const SCRAMBLE_ROUNDS = 6;
+const SCRAMBLE_SECONDS = 25; // per-round answer window
+const SCRAMBLE_REVEAL_SECONDS = 3;
+const SCRAMBLE_BASE = 2; // points for unscrambling the word
+const SCRAMBLE_SPEED_BONUS = 1; // extra for the first to solve each round
+
+// Hangman tuning.
+const HANGMAN_MAX_WRONG = 6; // wrong letters allowed before you're out
+const HANGMAN_SECONDS = 150; // round cap so a stalled player can't hang the game
+
 // Sudoku tuning. Blanks removed from a full grid per difficulty.
 const SUDOKU_HOLES = { easy: 38, medium: 46, hard: 52 };
 function holesFor(d) {
@@ -55,6 +67,8 @@ const GAMES = {
   ttt: { min: 2, max: 2, name: 'Tic Tac Toe' },
   wordle: { min: 2, max: 4, name: 'Wordle', solo: true },
   sudoku: { min: 2, max: 4, name: 'Sudoku', solo: true },
+  scramble: { min: 2, max: 4, name: 'Word Scramble', solo: true },
+  hangman: { min: 2, max: 4, name: 'Hangman', solo: true },
 };
 
 function shuffle(arr) {
@@ -570,12 +584,208 @@ function endSudoku(room) {
   });
 }
 
+// ========================= WORD SCRAMBLE =========================
+
+function scrambleWord(word) {
+  const letters = word.split('');
+  let out = word;
+  // Reshuffle until the letters actually move (guards short/repeated words).
+  for (let attempt = 0; attempt < 12 && out === word; attempt++) {
+    out = shuffle(letters.slice()).join('');
+  }
+  return out;
+}
+
+function startScramble(room) {
+  room.state = 'playing';
+  room.players.forEach((p) => (p.score = 0));
+  const words = pickGameWords(SCRAMBLE_ROUNDS).map((w) => ({
+    word: w.word,
+    hint: w.hint,
+    scrambled: scrambleWord(w.word),
+  }));
+  room.game = {
+    type: 'scramble',
+    words,
+    rIndex: -1,
+    phase: 'round',
+    endsAt: 0,
+    solved: new Map(), // playerId -> { order, gained } for the current round
+    solveSeq: 0,
+    timer: null,
+  };
+  io.to(room.code).emit('scramble:start', { total: words.length });
+  nextScramble(room);
+}
+
+function nextScramble(room) {
+  const g = room.game;
+  if (!g) return;
+  g.rIndex += 1;
+  if (g.rIndex >= g.words.length) return endScramble(room);
+
+  g.phase = 'round';
+  g.solved = new Map();
+  g.endsAt = Date.now() + SCRAMBLE_SECONDS * 1000;
+  const w = g.words[g.rIndex];
+  io.to(room.code).emit('scramble:round', {
+    index: g.rIndex,
+    total: g.words.length,
+    scrambled: w.scrambled,
+    hint: w.hint,
+    length: w.word.length,
+    seconds: SCRAMBLE_SECONDS,
+    endsAt: g.endsAt,
+    scoreboard: scoreboard(room),
+  });
+
+  clearTimeout(g.timer);
+  g.timer = setTimeout(() => revealScramble(room), SCRAMBLE_SECONDS * 1000);
+}
+
+function revealScramble(room) {
+  const g = room.game;
+  if (!g || g.phase !== 'round') return;
+  g.phase = 'reveal';
+  clearTimeout(g.timer);
+
+  const w = g.words[g.rIndex];
+  const results = {};
+  room.players.forEach((p) => {
+    const s = g.solved.get(p.id);
+    results[p.id] = { solved: !!s, gained: s ? s.gained : 0 };
+  });
+
+  io.to(room.code).emit('scramble:reveal', {
+    index: g.rIndex,
+    answer: w.word,
+    results,
+    scoreboard: scoreboard(room),
+    isLast: g.rIndex >= g.words.length - 1,
+    seconds: SCRAMBLE_REVEAL_SECONDS,
+  });
+
+  g.timer = setTimeout(() => nextScramble(room), SCRAMBLE_REVEAL_SECONDS * 1000);
+}
+
+function maybeRevealScrambleEarly(room) {
+  const g = room.game;
+  if (!g || g.type !== 'scramble' || g.phase !== 'round') return;
+  if (room.players.length && room.players.every((p) => g.solved.has(p.id))) {
+    revealScramble(room);
+  }
+}
+
+function endScramble(room) {
+  const g = room.game;
+  if (g) clearTimeout(g.timer);
+  room.state = 'over';
+  const board = scoreboard(room);
+  const top = board.length ? board[0].score : 0;
+  const winners = board.filter((p) => p.score === top && top > 0).map((p) => p.id);
+  io.to(room.code).emit('scramble:over', {
+    scoreboard: board,
+    winnerIds: winners,
+    tie: winners.length > 1,
+  });
+  room.game = null;
+}
+
+// ========================= HANGMAN =========================
+
+// The word masked to what a player has revealed so far: each position is the
+// letter if guessed, otherwise null. The secret itself never leaves the server
+// until the round is over.
+function hangmanMasked(secret, guessed) {
+  return secret.split('').map((ch) => (guessed.includes(ch) ? ch : null));
+}
+function hangmanSolved(secret, guessed) {
+  return secret.split('').every((ch) => guessed.includes(ch));
+}
+
+function startHangman(room) {
+  room.state = 'playing';
+  const pick = pickGameWord();
+  const secret = pick.word.toLowerCase().replace(/[^a-z]/g, '');
+  const boards = {};
+  room.players.forEach((p) => {
+    boards[p.id] = { guessed: [], wrong: 0, solved: false, done: false, solvedAt: null };
+  });
+  room.game = {
+    type: 'hangman',
+    secret,
+    hint: pick.hint,
+    boards,
+    solveSeq: 0,
+    winnerIds: [],
+    timer: null,
+  };
+  room.game.timer = setTimeout(() => endHangman(room), HANGMAN_SECONDS * 1000);
+  broadcastHangman(room);
+}
+
+function hangmanSummary(room) {
+  const g = room.game;
+  return room.players.map((p) => {
+    const b = g.boards[p.id];
+    return {
+      id: p.id,
+      name: p.name,
+      wrong: b ? b.wrong : 0,
+      solved: b ? b.solved : false,
+      done: b ? b.done : true,
+    };
+  });
+}
+
+function broadcastHangman(room, reveal) {
+  const g = room.game;
+  const summary = hangmanSummary(room);
+  room.players.forEach((p) => {
+    const b = g.boards[p.id];
+    io.to(p.id).emit('hangman:state', {
+      me: {
+        guessed: b ? b.guessed : [],
+        wrong: b ? b.wrong : 0,
+        maxWrong: HANGMAN_MAX_WRONG,
+        solved: b ? b.solved : false,
+        done: b ? b.done : true,
+        masked: b ? hangmanMasked(g.secret, b.guessed) : [],
+      },
+      hint: g.hint,
+      length: g.secret.length,
+      opponents: summary.filter((s) => s.id !== p.id),
+      state: room.state,
+      secret: reveal ? g.secret : null,
+      winnerIds: reveal ? g.winnerIds : null,
+    });
+  });
+}
+
+function endHangman(room) {
+  const g = room.game;
+  if (!g) return;
+  if (g.timer) clearTimeout(g.timer);
+  room.state = 'over';
+  const solvers = room.players
+    .filter((p) => g.boards[p.id] && g.boards[p.id].solved)
+    .sort((a, b) => {
+      const A = g.boards[a.id];
+      const B = g.boards[b.id];
+      return A.wrong - B.wrong || A.solvedAt - B.solvedAt;
+    });
+  g.winnerIds = solvers.length ? [solvers[0].id] : [];
+  broadcastHangman(room, true);
+}
+
 // ========================= DISPATCH =========================
 
 function launch(room, categories) {
   if (room.gameType === 'ttt') return startTtt(room);
   if (room.gameType === 'wordle') return startWordle(room);
   if (room.gameType === 'sudoku') return startSudoku(room);
+  if (room.gameType === 'scramble') return startScramble(room);
+  if (room.gameType === 'hangman') return startHangman(room);
   const cats = Array.isArray(categories)
     ? categories.filter((c) => typeof c === 'string')
     : null;
@@ -838,6 +1048,61 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ---- Word Scramble ----
+  socket.on('scramble:guess', ({ index, word } = {}, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    const g = room && room.game;
+    if (!g || g.type !== 'scramble' || g.phase !== 'round') return cb && cb({ ok: false });
+    if (index !== g.rIndex) return cb && cb({ ok: false });
+    if (g.solved.has(socket.id)) return cb && cb({ ok: false });
+
+    const guess = (word || '').toString().toLowerCase().replace(/[^a-z]/g, '');
+    if (!guess) return cb && cb({ ok: false, error: 'Type your answer' });
+    if (guess !== g.words[g.rIndex].word) return cb && cb({ ok: true, correct: false });
+
+    const order = g.solved.size + 1;
+    const gained = SCRAMBLE_BASE + (order === 1 ? SCRAMBLE_SPEED_BONUS : 0);
+    g.solved.set(socket.id, { order, gained });
+    const p = room.players.find((x) => x.id === socket.id);
+    if (p) p.score += gained;
+    if (cb) cb({ ok: true, correct: true, gained });
+
+    io.to(room.code).emit('scramble:solved', {
+      solved: g.solved.size,
+      total: room.players.length,
+    });
+    maybeRevealScrambleEarly(room);
+  });
+
+  // ---- Hangman ----
+  socket.on('hangman:guess', ({ letter } = {}, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    const g = room && room.game;
+    if (!g || g.type !== 'hangman' || room.state !== 'playing') return cb && cb({ ok: false });
+    const b = g.boards[socket.id];
+    if (!b || b.done) return cb && cb({ ok: false });
+    letter = (letter || '').toString().toLowerCase();
+    if (!/^[a-z]$/.test(letter)) return cb && cb({ ok: false });
+    if (b.guessed.includes(letter)) return cb && cb({ ok: false });
+
+    b.guessed.push(letter);
+    if (!g.secret.includes(letter)) {
+      b.wrong += 1;
+      if (b.wrong >= HANGMAN_MAX_WRONG) b.done = true;
+    } else if (hangmanSolved(g.secret, b.guessed)) {
+      b.solved = true;
+      b.done = true;
+      b.solvedAt = ++g.solveSeq;
+    }
+    if (cb) cb({ ok: true });
+
+    if (room.players.every((p) => g.boards[p.id] && g.boards[p.id].done)) {
+      endHangman(room);
+    } else {
+      broadcastHangman(room);
+    }
+  });
+
   socket.on('leaveRoom', () => {
     handleLeave();
     broadcastStats();
@@ -891,6 +1156,16 @@ io.on('connection', (socket) => {
     } else if (room.gameType === 'sudoku' && room.game) {
       delete room.game.boards[socket.id];
       io.to(room.code).emit('sudoku:progress', { players: sudokuSummary(room) });
+    } else if (room.gameType === 'scramble' && room.game) {
+      room.game.solved.delete(socket.id);
+      maybeRevealScrambleEarly(room);
+    } else if (room.gameType === 'hangman' && room.game) {
+      delete room.game.boards[socket.id];
+      if (room.players.every((p) => room.game.boards[p.id] && room.game.boards[p.id].done)) {
+        endHangman(room);
+      } else {
+        broadcastHangman(room);
+      }
     }
   }
 });

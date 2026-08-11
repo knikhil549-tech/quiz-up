@@ -16,8 +16,10 @@
     ttt: $("screen-ttt"),
     wordle: $("screen-wordle"),
     sudoku: $("screen-sudoku"),
+    scramble: $("screen-scramble"),
+    hangman: $("screen-hangman"),
   };
-  const SOLO_GAMES = new Set(["wordle", "sudoku"]);
+  const SOLO_GAMES = new Set(["wordle", "sudoku", "scramble", "hangman"]);
   function show(name) {
     Object.values(screens).forEach((s) => s.classList.remove("active"));
     screens[name].classList.add("active");
@@ -43,6 +45,11 @@
     // sudoku
     sudoku: null,
     sudokuDifficulty: "medium",
+    // word scramble
+    scramble: null,
+    scrambleTick: null,
+    // hangman
+    hangman: null,
   };
 
   const DIFF_LIST = [
@@ -68,9 +75,11 @@
     { type: "ttt", icon: "⭕", name: "Tic Tac Toe" },
     { type: "wordle", icon: "🔤", name: "Wordle" },
     { type: "sudoku", icon: "🔢", name: "Sudoku" },
+    { type: "scramble", icon: "🔀", name: "Word Scramble" },
+    { type: "hangman", icon: "🔡", name: "Hangman" },
   ];
-  const GAME_ICON = { quiz: "🧠", ttt: "⭕", wordle: "🔤", sudoku: "🔢" };
-  const GAME_NAME = { quiz: "Quiz Up", ttt: "Tic Tac Toe", wordle: "Wordle", sudoku: "Sudoku" };
+  const GAME_ICON = { quiz: "🧠", ttt: "⭕", wordle: "🔤", sudoku: "🔢", scramble: "🔀", hangman: "🔡" };
+  const GAME_NAME = { quiz: "Quiz Up", ttt: "Tic Tac Toe", wordle: "Wordle", sudoku: "Sudoku", scramble: "Word Scramble", hangman: "Hangman" };
 
   const params = new URLSearchParams(location.search);
   const linkCode = (params.get("room") || "").toUpperCase().trim();
@@ -231,6 +240,8 @@
   $("btn-ttt-leave").addEventListener("click", askLeave);
   $("btn-wordle-leave").addEventListener("click", askLeave);
   $("btn-sudoku-leave").addEventListener("click", askLeave);
+  $("btn-scramble-leave").addEventListener("click", askLeave);
+  $("btn-hangman-leave").addEventListener("click", askLeave);
   function leaveToHome() {
     socket.emit("leaveRoom");
     location.href = location.origin;
@@ -978,6 +989,321 @@
       renderSudoku();
       e.preventDefault();
     }
+  });
+
+  // ============ WORD SCRAMBLE ============
+  socket.on("scramble:start", () => {
+    state.scramble = { board: [], over: false, index: -1, solved: false };
+  });
+
+  socket.on("scramble:round", (d) => {
+    stopScrambleTick();
+    const s = state.scramble || (state.scramble = {});
+    s.index = d.index;
+    s.solved = false;
+    s.over = false;
+    s.board = d.scoreboard || s.board || [];
+
+    $("scramble-progress").textContent = "R" + (d.index + 1) + " / " + d.total;
+    $("scramble-hint").textContent = "Hint: " + d.hint + " · " + d.length + " letters";
+    renderScrambleLetters(d.scrambled);
+
+    $("scramble-input").value = "";
+    $("scramble-input").disabled = false;
+    $("scramble-submit").disabled = false;
+    $("scramble-msg").textContent = "";
+    $("scramble-msg").className = "muted center small";
+    $("scramble-answer-row").classList.remove("hidden");
+    $("scramble-reveal").classList.add("hidden");
+    $("scramble-banner").classList.add("hidden");
+    $("btn-scramble-rematch").classList.add("hidden");
+    $("scramble-waiting").classList.add("hidden");
+
+    renderScrambleBoard();
+    show("scramble");
+    startScrambleTick(d.endsAt, d.seconds);
+    $("scramble-input").focus();
+  });
+
+  socket.on("scramble:solved", (d) => {
+    if (!screens.scramble.classList.contains("active")) return;
+    if (state.scramble && state.scramble.solved) {
+      $("scramble-msg").textContent = "Solved! " + d.solved + " / " + d.total + " done";
+    }
+  });
+
+  socket.on("scramble:reveal", (d) => {
+    stopScrambleTick();
+    const s = state.scramble || (state.scramble = {});
+    s.board = d.scoreboard || [];
+    const mine = d.results && d.results[state.myId];
+
+    $("scramble-answer-row").classList.add("hidden");
+    $("scramble-input").disabled = true;
+    $("scramble-submit").disabled = true;
+    $("scramble-msg").textContent = "";
+
+    $("scramble-reveal").classList.remove("hidden");
+    $("scramble-reveal-icon").textContent = mine && mine.solved ? "✅" : "💡";
+    $("scramble-reveal-word").textContent = (d.answer || "").toUpperCase();
+    $("scramble-reveal-note").textContent =
+      mine && mine.solved
+        ? "You got it! +" + mine.gained
+        : d.isLast
+        ? "Final scores coming up…"
+        : "Next word in a moment…";
+
+    renderScrambleBoard();
+  });
+
+  socket.on("scramble:over", (d) => {
+    stopScrambleTick();
+    const s = state.scramble || (state.scramble = {});
+    s.over = true;
+    s.board = d.scoreboard || [];
+
+    $("scramble-answer-row").classList.add("hidden");
+    $("scramble-reveal").classList.add("hidden");
+    $("scramble-msg").textContent = "";
+
+    const board = s.board;
+    const banner = $("scramble-banner");
+    banner.classList.remove("hidden");
+    const won = d.winnerIds && d.winnerIds.includes(state.myId);
+    const any = d.winnerIds && d.winnerIds.length > 0;
+    const title = $("scramble-banner-title");
+    $("scramble-banner-icon").textContent = won ? "🏆" : any ? "🙁" : "🫥";
+    if (won) {
+      title.textContent = "You win!";
+      title.className = "ok-text";
+    } else if (d.tie && any) {
+      const names = board.filter((p) => d.winnerIds.includes(p.id)).map((p) => p.name);
+      title.textContent = "It's a tie!";
+      title.className = "";
+      $("scramble-banner-sub").textContent = names.join(" & ") + " — " + (board[0] ? board[0].score : 0) + " points each";
+    } else if (any) {
+      const w = board.find((p) => p.id === d.winnerIds[0]);
+      title.textContent = (w ? w.name : "Winner") + " wins!";
+      title.className = "";
+    } else {
+      title.textContent = "No winner";
+      title.className = "";
+    }
+    if (!(d.tie && any)) {
+      const w = board.find((p) => p.id === (d.winnerIds && d.winnerIds[0]));
+      $("scramble-banner-sub").textContent = any && w ? w.score + " points" : "Nobody scored.";
+    }
+
+    renderScrambleBoard();
+    const amHost = state.room && state.room.hostId === state.myId;
+    $("btn-scramble-rematch").classList.toggle("hidden", !amHost);
+    $("scramble-waiting").classList.toggle("hidden", amHost);
+    if (won) celebrate();
+    show("scramble");
+  });
+
+  function renderScrambleLetters(scrambled) {
+    const wrap = $("scramble-letters");
+    wrap.innerHTML = "";
+    (scrambled || "").split("").forEach((ch) => {
+      const tile = document.createElement("span");
+      tile.className = "sc-tile";
+      tile.textContent = ch.toUpperCase();
+      wrap.append(tile);
+    });
+  }
+
+  function renderScrambleBoard() {
+    const s = state.scramble;
+    if (!s) return;
+    renderBoard($("scramble-board"), s.board || []);
+  }
+
+  function submitScramble() {
+    const s = state.scramble;
+    if (!s || s.solved || s.over) return;
+    const word = $("scramble-input").value.trim();
+    if (!word) return;
+    ensureAudio();
+    socket.emit("scramble:guess", { index: s.index, word }, (res) => {
+      if (!res) return;
+      if (res.correct) {
+        s.solved = true;
+        $("scramble-input").disabled = true;
+        $("scramble-submit").disabled = true;
+        $("scramble-msg").textContent = "Solved! +" + res.gained + " 🎉";
+        $("scramble-msg").className = "ok-text center small";
+        celebrate();
+      } else if (res.ok) {
+        $("scramble-msg").textContent = "Not quite, keep trying";
+        $("scramble-msg").className = "muted center small";
+        $("scramble-input").select();
+      } else if (res.error) {
+        $("scramble-msg").textContent = res.error;
+        $("scramble-msg").className = "muted center small";
+      }
+    });
+  }
+
+  $("scramble-submit").addEventListener("click", submitScramble);
+  $("scramble-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitScramble();
+  });
+  $("btn-scramble-rematch").addEventListener("click", () => hostRematch($("scramble-msg")));
+
+  function startScrambleTick(endsAt, seconds) {
+    stopScrambleTick();
+    const render = () => {
+      const remaining = Math.max(0, endsAt - Date.now());
+      const secs = Math.ceil(remaining / 1000);
+      $("scramble-timer").textContent = String(secs);
+      $("scramble-timer").classList.toggle("urgent", secs <= 5);
+      $("scramble-timerbar").style.width =
+        Math.max(0, Math.min(100, (remaining / (seconds * 1000)) * 100)) + "%";
+      if (remaining <= 0) stopScrambleTick();
+    };
+    render();
+    state.scrambleTick = setInterval(render, 200);
+  }
+  function stopScrambleTick() {
+    if (state.scrambleTick) {
+      clearInterval(state.scrambleTick);
+      state.scrambleTick = null;
+    }
+  }
+
+  // ============ HANGMAN ============
+  socket.on("hangman:state", (d) => {
+    state.hangman = { data: d, over: d.state === "over" };
+    renderHangman();
+    show("hangman");
+  });
+
+  function renderHangman() {
+    const h = state.hangman;
+    if (!h || !h.data) return;
+    const d = h.data;
+    const done = d.me.done || h.over;
+    const reveal = h.over && d.secret;
+
+    $("hangman-hint").textContent = "Hint: " + d.hint;
+    const remaining = Math.max(0, d.me.maxWrong - d.me.wrong);
+    $("hangman-lives").textContent = remaining + " ❤";
+
+    // The word: revealed letters, or the full secret once the round is over.
+    const letters = reveal ? d.secret.split("") : d.me.masked;
+    const revealedSet = new Set((d.me.masked || []).filter(Boolean));
+    const wordEl = $("hangman-word");
+    wordEl.innerHTML = "";
+    (letters || []).forEach((ch) => {
+      const tile = document.createElement("span");
+      tile.className = "hm-tile" + (ch ? "" : " blank");
+      tile.textContent = ch ? ch.toUpperCase() : "_";
+      wordEl.append(tile);
+    });
+
+    // Wrong letters guessed so far.
+    const wrongLetters = (d.me.guessed || []).filter((l) => !revealedSet.has(l));
+    $("hangman-misses").textContent = wrongLetters.length
+      ? "Misses: " + wrongLetters.join(" ").toUpperCase() + " (" + d.me.wrong + " / " + d.me.maxWrong + ")"
+      : "";
+
+    // Keyboard (letters only). Colour guessed keys, disable them and everything
+    // once this player is done or the round is over.
+    const kb = $("hangman-keyboard");
+    kb.innerHTML = "";
+    const guessed = new Set(d.me.guessed || []);
+    WK_ROWS.forEach((rowStr) => {
+      const row = document.createElement("div");
+      row.className = "wk-row";
+      rowStr.split("").forEach((ch) => {
+        const b = document.createElement("button");
+        let cls = "wk-key";
+        if (guessed.has(ch)) cls += revealedSet.has(ch) ? " k-correct" : " k-absent";
+        b.className = cls;
+        b.textContent = ch.toUpperCase();
+        b.disabled = done || guessed.has(ch);
+        b.addEventListener("click", () => hangmanGuess(ch));
+        row.append(b);
+      });
+      kb.append(row);
+    });
+    kb.classList.toggle("hidden", done);
+
+    // Per-player, when done but the round is still going.
+    const msg = $("hangman-msg");
+    if (!h.over && done) {
+      msg.textContent = d.me.solved ? "Solved! Waiting for others…" : "Out of guesses. Waiting for others…";
+    } else {
+      msg.textContent = "";
+    }
+
+    // Opponents.
+    const opps = d.opponents || [];
+    $("hangman-opps").classList.toggle("hidden", opps.length === 0);
+    const list = $("hangman-opp-list");
+    list.innerHTML = "";
+    opps.forEach((o) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "bname";
+      name.textContent = o.name;
+      const pts = document.createElement("span");
+      pts.className = "pts";
+      pts.textContent = o.solved
+        ? "✅ " + o.wrong + " miss"
+        : o.done
+        ? "❌ out"
+        : o.wrong + " / " + d.me.maxWrong + " miss";
+      li.append(name, pts);
+      list.append(li);
+    });
+
+    // End banner.
+    const banner = $("hangman-banner");
+    if (h.over) {
+      banner.classList.remove("hidden");
+      const won = d.winnerIds && d.winnerIds.includes(state.myId);
+      const any = d.winnerIds && d.winnerIds.length > 0;
+      $("hangman-banner-icon").textContent = won ? "🏆" : any ? "🙁" : "🫥";
+      const title = $("hangman-banner-title");
+      if (won) {
+        title.textContent = "You win!";
+        title.className = "ok-text";
+      } else if (any) {
+        const wname = (opps.find((o) => o.id === d.winnerIds[0]) || {}).name || "Someone";
+        title.textContent = wname + " wins";
+        title.className = "";
+      } else {
+        title.textContent = "Nobody got it";
+        title.className = "";
+      }
+      $("hangman-banner-sub").textContent = d.secret ? "The word was " + d.secret.toUpperCase() : "";
+      if (won) celebrate();
+    } else {
+      banner.classList.add("hidden");
+    }
+
+    const amHost = state.room && state.room.hostId === state.myId;
+    $("btn-hangman-rematch").classList.toggle("hidden", !(h.over && amHost));
+    $("hangman-waiting").classList.toggle("hidden", !(h.over && !amHost));
+  }
+
+  function hangmanGuess(letter) {
+    const h = state.hangman;
+    if (!h || h.over || !h.data || h.data.me.done) return;
+    if ((h.data.me.guessed || []).includes(letter)) return;
+    ensureAudio();
+    socket.emit("hangman:guess", { letter }, () => {});
+  }
+
+  $("btn-hangman-rematch").addEventListener("click", () => hostRematch(null));
+
+  // Physical keyboard support for Hangman (handy on laptops).
+  document.addEventListener("keydown", (e) => {
+    if (!screens.hangman.classList.contains("active")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (/^[a-zA-Z]$/.test(e.key)) hangmanGuess(e.key.toLowerCase());
   });
 
   // ============ celebration: sound + confetti ============

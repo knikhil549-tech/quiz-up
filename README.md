@@ -8,7 +8,7 @@ installs.
 
 Pick one on the home screen:
 
-- **Quiz Up** 🧠 — trivia race, 2–4 players. 5 questions, 30 seconds each, 2
+- **Quiz Up** 🧠 — trivia race, 2–4 players. 10 questions, 30 seconds each, 2
   points per correct answer. Host picks one or more categories (Science &
   Nature, Geography, Movies, Music, General Knowledge). Highest score wins.
 - **Tic Tac Toe** ⭕ — classic X vs O, exactly 2 players. Turn-based, with a
@@ -24,17 +24,25 @@ Pick one on the home screen:
   Puzzles are generated with a guaranteed unique solution. In multiplayer
   everyone races the same puzzle; the first to complete it correctly wins and
   the finished grid is revealed to everyone.
+- **Word Scramble** 🔀 — unscramble the word, solo or 2–4 players. 6 rounds of
+  25 seconds each; every word comes with a category hint. Correct answers score
+  2 points, plus 1 bonus for the first to solve each round. Highest total wins.
+- **Hangman** 🔡 — guess the word letter by letter, solo or 2–4 players.
+  Everyone gets the same secret word (with a category hint) and 6 wrong letters
+  before they are out. First to reveal the whole word (fewest misses) wins; if
+  nobody solves, the word is revealed.
 
-**Solo mode:** Wordle and Sudoku can be played alone — pick the game, choose
-"Play solo", and you start immediately (no room or second player needed).
+**Solo mode:** Wordle, Sudoku, Word Scramble and Hangman can be played alone —
+pick the game, choose "Play solo", and you start immediately (no room or second
+player needed).
 
 ## How a room works
 
 - Host picks a game → a **4-letter code** and a **QR code** appear.
 - Others scan the QR (or type the code) and pick a name — they land straight in
   the lobby for whatever game the host chose.
-- Host starts once enough players are in (2 for every game; up to 4 for Quiz and
-  Wordle, exactly 2 for Tic Tac Toe).
+- Host starts once enough players are in (2 minimum for every game; up to 4 for
+  most, exactly 2 for Tic Tac Toe).
 - Correct answers/wins play a short sound and drop a confetti burst.
 
 ## Run it
@@ -61,10 +69,11 @@ machine.) When deployed to a public host, just share that URL instead.
 ## Project layout
 
 - `server.js` — Express + Socket.IO. Shared room/lobby, plus the state machine
-  for each game (quiz, tic tac toe, wordle).
+  for each game (quiz, tic tac toe, wordle, sudoku, word scramble, hangman).
 - `questions.js` — the quiz bank grouped by category.
 - `words.js` — the Wordle secret-word list.
 - `wordle-dict.js` — auto-generated list of valid 5-letter guesses (real words).
+- `game-words.js` — word + category-hint bank for Word Scramble and Hangman.
 - `history.js` — tracks how many times each quiz question has been shown so the
   picker favours the least-shown ones.
 - `public/` — the single-page client (`index.html`, `style.css`, `app.js`).
@@ -74,17 +83,23 @@ machine.) When deployed to a public host, just share that URL instead.
 Knobs live at the top of `server.js`, including per-game player limits:
 
 ```js
-const QUESTIONS_PER_GAME = 5;
+const QUESTIONS_PER_GAME = 10;
 const POINTS_PER_CORRECT = 2;
 const ANSWER_SECONDS = 30;
 const REVEAL_SECONDS = 5;
 const WORDLE_MAX_GUESSES = 6;
 const WORDLE_SECONDS = 180;
+const SCRAMBLE_ROUNDS = 6;
+const SCRAMBLE_SECONDS = 25;
+const HANGMAN_MAX_WRONG = 6;
 
 const GAMES = {
   quiz: { min: 2, max: 4, name: 'Quiz Up' },
   ttt: { min: 2, max: 2, name: 'Tic Tac Toe' },
-  wordle: { min: 2, max: 4, name: 'Wordle' },
+  wordle: { min: 2, max: 4, name: 'Wordle', solo: true },
+  sudoku: { min: 2, max: 4, name: 'Sudoku', solo: true },
+  scramble: { min: 2, max: 4, name: 'Word Scramble', solo: true },
+  hangman: { min: 2, max: 4, name: 'Hangman', solo: true },
 };
 ```
 

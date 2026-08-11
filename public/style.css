@@ -610,6 +610,74 @@ h2 {
   color: #fff;
 }
 
+/* ===== Word Scramble ===== */
+.scramble-card {
+  padding: 22px 18px;
+}
+.scramble-letters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.sc-tile {
+  width: 44px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  font-weight: 800;
+  text-transform: uppercase;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+}
+.scramble-answer-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.scramble-answer-row .input {
+  flex: 1;
+  margin-bottom: 0;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+.scramble-answer-row .btn {
+  width: auto;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+/* ===== Hangman ===== */
+.hangman-word {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px auto 12px;
+  max-width: 360px;
+}
+.hm-tile {
+  min-width: 30px;
+  height: 44px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 3px solid var(--ink);
+}
+.hm-tile.blank {
+  color: var(--line);
+}
+
 /* ===== Lobby: game switcher ===== */
 .game-switch {
   display: flex;
