@@ -306,7 +306,24 @@
       </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js"></script>
+    <script src="/config.js"></script>
+    <script>
+      // Load the Socket.IO client from the game server (so its version always
+      // matches the server), then load app.js from this static host. When
+      // GAME_SERVER_URL is empty, both resolve to the same origin, identical to
+      // a combined client + server deployment.
+      (function () {
+        var base = window.GAME_SERVER_URL || "";
+        function load(src, cb) {
+          var s = document.createElement("script");
+          s.src = src;
+          s.onload = cb;
+          document.body.appendChild(s);
+        }
+        load(base + "/socket.io/socket.io.js", function () {
+          load("/app.js");
+        });
+      })();
+    </script>
   </body>
 </html>

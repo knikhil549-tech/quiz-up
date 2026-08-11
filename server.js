@@ -10,8 +10,23 @@ const { VALID: WORDLE_DICT } = require('./wordle-dict');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
 
+// When the static client is hosted on another origin (e.g. Cloudflare Pages),
+// list its origin(s) in CLIENT_ORIGIN (comma-separated) so the cross-origin
+// Socket.IO connection is allowed. Unset means same-origin only, the default.
+const clientOrigins = (process.env.CLIENT_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const io = new Server(
+  server,
+  clientOrigins.length
+    ? { cors: { origin: clientOrigins, methods: ['GET', 'POST'] } }
+    : {},
+);
+
+// Still serve the client locally so a combined deployment keeps working and
+// the server can act as a fallback host.
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Quiz tuning.
@@ -70,6 +85,10 @@ function makeCode() {
 }
 
 function baseUrl(socket) {
+  // PUBLIC_URL is where players load the client from. Set it to the static
+  // host (e.g. the Cloudflare Pages URL) when client and server are split, so
+  // the QR code and join link point players at the client, not the server.
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
   const h = socket.handshake.headers;
   const proto = (h['x-forwarded-proto'] || '').split(',')[0] || 'http';
   const host = h['x-forwarded-host'] || h.host;

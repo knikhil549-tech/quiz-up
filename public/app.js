@@ -1,6 +1,8 @@
 /* Game Night — room + lobby + Quiz / Tic Tac Toe / Wordle clients */
 (function () {
-  const socket = io();
+  // Same origin by default; when GAME_SERVER_URL is set (static client hosted
+  // apart from the server), connect to that backend instead.
+  const socket = window.GAME_SERVER_URL ? io(window.GAME_SERVER_URL) : io();
 
   const $ = (id) => document.getElementById(id);
   const screens = {
