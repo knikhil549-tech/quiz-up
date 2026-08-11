@@ -15,7 +15,7 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Quiz tuning.
-const QUESTIONS_PER_GAME = 5;
+const QUESTIONS_PER_GAME = 10;
 const POINTS_PER_CORRECT = 2;
 const ANSWER_SECONDS = 30;
 const REVEAL_SECONDS = 5;

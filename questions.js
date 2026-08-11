@@ -125,6 +125,76 @@ const CATEGORY_QUESTIONS = {
       correct: 1,
       explanation: 'A cheetah can sprint at roughly 100 km/h.',
     },
+    {
+      q: 'What is the most abundant metal in the Earth’s crust?',
+      options: ['Iron', 'Aluminium', 'Copper', 'Calcium'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Aluminium makes up about 8 percent of the crust by mass.',
+    },
+    {
+      q: 'Which subatomic particle carries no electric charge?',
+      options: ['Proton', 'Electron', 'Neutron', 'Positron'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'Neutrons are electrically neutral; protons are positive and electrons negative.',
+    },
+    {
+      q: 'What is the pH of a neutral solution at 25 degrees Celsius?',
+      options: ['0', '7', '14', '1'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'A neutral solution has a pH of 7; below is acidic, above is basic.',
+    },
+    {
+      q: 'Who formulated the three laws of planetary motion?',
+      options: ['Copernicus', 'Johannes Kepler', 'Isaac Newton', 'Tycho Brahe'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Kepler derived the laws from Tycho Brahe’s observational data.',
+    },
+    {
+      q: 'The building blocks of DNA are known as what?',
+      options: ['Amino acids', 'Nucleotides', 'Codons', 'Peptides'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'DNA is a chain of nucleotides; amino acids build proteins.',
+    },
+    {
+      q: 'Which metal is a liquid at room temperature?',
+      options: ['Gallium', 'Mercury', 'Sodium', 'Lead'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Mercury is the only metal that is liquid at ordinary room temperature.',
+    },
+    {
+      q: 'The speed of light in a vacuum is closest to how many km per second?',
+      options: ['30,000', '150,000', '300,000', '3,000,000'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'Light travels at about 299,792 km/s, roughly 300,000 km/s.',
+    },
+    {
+      q: 'What is the largest moon of Saturn?',
+      options: ['Europa', 'Titan', 'Ganymede', 'Io'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Titan is Saturn’s largest moon; Ganymede orbits Jupiter.',
+    },
+    {
+      q: 'Which type of blood cell mainly fights infection?',
+      options: ['Red blood cells', 'White blood cells', 'Platelets', 'Plasma'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'White blood cells (leukocytes) defend the body against infection.',
+    },
+    {
+      q: 'What process converts a liquid into a gas below its boiling point?',
+      options: ['Condensation', 'Evaporation', 'Sublimation', 'Deposition'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Evaporation occurs at the surface of a liquid below boiling point.',
+    },
   ],
 
   Geography: [
@@ -254,6 +324,76 @@ const CATEGORY_QUESTIONS = {
       correct: 1,
       explanation: 'Nairobi is Kenya’s capital.',
     },
+    {
+      q: 'What is the capital of Kazakhstan?',
+      options: ['Almaty', 'Astana', 'Bishkek', 'Tashkent'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Astana is the capital; Almaty is the largest city.',
+    },
+    {
+      q: 'The Atacama, one of the driest deserts on Earth, lies mainly in which country?',
+      options: ['Peru', 'Chile', 'Argentina', 'Bolivia'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'The Atacama Desert runs along northern Chile.',
+    },
+    {
+      q: 'Which strait separates Europe from Africa?',
+      options: ['Bosphorus', 'Strait of Gibraltar', 'Strait of Hormuz', 'Bering Strait'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'The Strait of Gibraltar links the Mediterranean to the Atlantic.',
+    },
+    {
+      q: 'Mount Kilimanjaro, Africa’s highest peak, is in which country?',
+      options: ['Kenya', 'Tanzania', 'Uganda', 'Ethiopia'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Kilimanjaro rises in northeastern Tanzania.',
+    },
+    {
+      q: 'What is the smallest country in the world by area?',
+      options: ['Monaco', 'Nauru', 'Vatican City', 'San Marino'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'Vatican City covers about 0.44 square kilometres.',
+    },
+    {
+      q: 'Lake Baikal, the world’s deepest lake, is located in which country?',
+      options: ['Mongolia', 'Russia', 'China', 'Kazakhstan'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Baikal lies in southern Siberia, Russia.',
+    },
+    {
+      q: 'What is the capital of New Zealand?',
+      options: ['Auckland', 'Wellington', 'Christchurch', 'Hamilton'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Wellington is the capital; Auckland is the largest city.',
+    },
+    {
+      q: 'Which country has the most natural lakes?',
+      options: ['Russia', 'United States', 'Canada', 'Finland'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'Canada holds more lakes than the rest of the world combined.',
+    },
+    {
+      q: 'The Danube river flows through the most countries of any river. Roughly how many?',
+      options: ['4', '6', '10', '14'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'The Danube passes through about 10 countries in central and eastern Europe.',
+    },
+    {
+      q: 'What is the capital of Switzerland?',
+      options: ['Zurich', 'Geneva', 'Bern', 'Basel'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'Bern is the seat of government; Zurich and Geneva are larger cities.',
+    },
   ],
 
   Movies: [
@@ -317,6 +457,76 @@ const CATEGORY_QUESTIONS = {
       correct: 2,
       explanation: 'The red pill reveals the truth of the Matrix.',
     },
+    {
+      q: 'Who directed the 1994 film "Pulp Fiction"?',
+      options: ['Martin Scorsese', 'Quentin Tarantino', 'David Fincher', 'Joel Coen'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Quentin Tarantino wrote and directed Pulp Fiction.',
+    },
+    {
+      q: 'Which 2019 film was the first non-English language film to win Best Picture?',
+      options: ['Roma', 'Parasite', 'Amour', 'Drive My Car'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Bong Joon-ho’s Parasite won Best Picture in 2020.',
+    },
+    {
+      q: 'Who played the Joker in the 2008 film "The Dark Knight"?',
+      options: ['Jack Nicholson', 'Heath Ledger', 'Joaquin Phoenix', 'Jared Leto'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Heath Ledger won a posthumous Oscar for the role.',
+    },
+    {
+      q: 'Who composed the scores for "Jaws", "Star Wars", and "Jurassic Park"?',
+      options: ['Hans Zimmer', 'John Williams', 'Ennio Morricone', 'Danny Elfman'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'John Williams composed all three iconic scores.',
+    },
+    {
+      q: 'In "The Godfather", what is the surname of the central crime family?',
+      options: ['Soprano', 'Corleone', 'Barzini', 'Tattaglia'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'The story centres on the Corleone family.',
+    },
+    {
+      q: 'In "2001: A Space Odyssey", what is the name of the sentient computer?',
+      options: ['HAL 9000', 'Skynet', 'Deep Thought', 'GERTY'],
+      correct: 0,
+      difficulty: 'hard',
+      explanation: 'HAL 9000 controls the spacecraft Discovery One.',
+    },
+    {
+      q: 'Which director made "Vertigo", "Psycho", and "Rear Window"?',
+      options: ['Stanley Kubrick', 'Alfred Hitchcock', 'Billy Wilder', 'Orson Welles'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Alfred Hitchcock, the "Master of Suspense", directed all three.',
+    },
+    {
+      q: 'Which film won the very first Academy Award for Best Picture?',
+      options: ['Wings', 'Sunrise', 'The Jazz Singer', 'Metropolis'],
+      correct: 0,
+      difficulty: 'hard',
+      explanation: 'Wings won at the first Oscars ceremony in 1929.',
+    },
+    {
+      q: '"Citizen Kane" was co-written, directed by, and starred which filmmaker?',
+      options: ['Orson Welles', 'Charlie Chaplin', 'John Ford', 'Frank Capra'],
+      correct: 0,
+      difficulty: 'hard',
+      explanation: 'Orson Welles made Citizen Kane in 1941 at age 25.',
+    },
+    {
+      q: 'Which film held the record as highest-grossing of all time just before "Avatar" (2009)?',
+      options: ['Titanic', 'Jurassic Park', 'The Dark Knight', 'The Return of the King'],
+      correct: 0,
+      difficulty: 'hard',
+      explanation: 'Titanic (1997) held the record until Avatar surpassed it.',
+    },
   ],
 
   Music: [
@@ -379,6 +589,76 @@ const CATEGORY_QUESTIONS = {
       options: ['Trumpet', 'Clarinet', 'Trombone', 'Cello'],
       correct: 1,
       explanation: 'The clarinet is a woodwind; the others are brass or string.',
+    },
+    {
+      q: 'Which composer wrote the set of concertos known as "The Four Seasons"?',
+      options: ['Bach', 'Vivaldi', 'Mozart', 'Handel'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Antonio Vivaldi composed The Four Seasons around 1723.',
+    },
+    {
+      q: 'How many symphonies did Ludwig van Beethoven complete?',
+      options: ['5', '7', '9', '12'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'Beethoven completed nine symphonies.',
+    },
+    {
+      q: 'In music, how many semitones make up one octave?',
+      options: ['7', '8', '10', '12'],
+      correct: 3,
+      difficulty: 'hard',
+      explanation: 'An octave spans 12 semitones.',
+    },
+    {
+      q: 'Which Italian term means to gradually get louder?',
+      options: ['Diminuendo', 'Crescendo', 'Staccato', 'Legato'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Crescendo marks a gradual increase in volume.',
+    },
+    {
+      q: 'The opera "The Magic Flute" was composed by whom?',
+      options: ['Verdi', 'Mozart', 'Wagner', 'Puccini'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Mozart composed The Magic Flute in 1791.',
+    },
+    {
+      q: 'Which of these instruments is not part of the string family?',
+      options: ['Viola', 'Cello', 'Oboe', 'Double bass'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'The oboe is a woodwind instrument.',
+    },
+    {
+      q: 'How many lines make up a standard musical staff?',
+      options: ['4', '5', '6', '7'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'A staff has five lines and four spaces.',
+    },
+    {
+      q: 'The piece "Für Elise" was written by which composer?',
+      options: ['Chopin', 'Beethoven', 'Liszt', 'Schubert'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Beethoven composed the bagatelle known as Für Elise.',
+    },
+    {
+      q: 'Which term describes the quality or colour of a musical sound?',
+      options: ['Tempo', 'Timbre', 'Dynamics', 'Metre'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Timbre distinguishes one instrument’s tone from another.',
+    },
+    {
+      q: 'How many keys on a standard piano are black?',
+      options: ['32', '36', '40', '52'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'A piano has 36 black keys and 52 white keys, 88 in total.',
     },
   ],
 
@@ -502,13 +782,88 @@ const CATEGORY_QUESTIONS = {
       correct: 3,
       explanation: 'Mandarin Chinese has the most native speakers.',
     },
+    {
+      q: 'In what year did the Berlin Wall fall?',
+      options: ['1987', '1989', '1991', '1993'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'The Berlin Wall fell in November 1989.',
+    },
+    {
+      q: 'Who wrote the novel "War and Peace"?',
+      options: ['Fyodor Dostoevsky', 'Leo Tolstoy', 'Anton Chekhov', 'Ivan Turgenev'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Leo Tolstoy published War and Peace in the 1860s.',
+    },
+    {
+      q: 'What is the chemical formula for common table salt?',
+      options: ['NaCl', 'KCl', 'CaCO3', 'H2O'],
+      correct: 0,
+      difficulty: 'hard',
+      explanation: 'Table salt is sodium chloride, NaCl.',
+    },
+    {
+      q: 'How many time zones does Russia span?',
+      options: ['7', '9', '11', '13'],
+      correct: 2,
+      difficulty: 'hard',
+      explanation: 'Russia officially spans 11 time zones.',
+    },
+    {
+      q: 'Who developed one of the first successful polio vaccines in the 1950s?',
+      options: ['Alexander Fleming', 'Jonas Salk', 'Louis Pasteur', 'Edward Jenner'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Jonas Salk introduced the first effective polio vaccine in 1955.',
+    },
+    {
+      q: 'Which of the seven ancient wonders of the world still stands today?',
+      options: ['Hanging Gardens', 'Great Pyramid of Giza', 'Colossus of Rhodes', 'Lighthouse of Alexandria'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'The Great Pyramid of Giza is the only ancient wonder still standing.',
+    },
+    {
+      q: 'What does "GDP" stand for in economics?',
+      options: ['Gross Domestic Product', 'General Domestic Price', 'Gross Detailed Product', 'Global Demand Percentage'],
+      correct: 0,
+      difficulty: 'hard',
+      explanation: 'GDP is the Gross Domestic Product of an economy.',
+    },
+    {
+      q: 'Which element has the chemical symbol "Fe"?',
+      options: ['Fluorine', 'Iron', 'Francium', 'Lead'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Fe stands for iron, from the Latin "ferrum".',
+    },
+    {
+      q: 'The Magna Carta was sealed in which year?',
+      options: ['1066', '1215', '1348', '1492'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'King John sealed the Magna Carta in 1215.',
+    },
+    {
+      q: 'Which planet in our solar system rotates on its side, with an axial tilt near 98 degrees?',
+      options: ['Neptune', 'Uranus', 'Saturn', 'Venus'],
+      correct: 1,
+      difficulty: 'hard',
+      explanation: 'Uranus is tilted about 98 degrees, so it rolls along its orbit.',
+    },
   ],
 };
 
-// Flatten into a single bank, tagging each question with its category.
+// Difficulty ordering: lower rank comes out first, so games favour the harder
+// questions. Anything not explicitly tagged is treated as 'easy'.
+const DIFFICULTY_RANK = { hard: 0, medium: 1, easy: 2 };
+
+// Flatten into a single bank, tagging each question with its category and a
+// difficulty (defaulting to 'easy' when the question does not set one).
 const BANK = [];
 for (const [cat, questions] of Object.entries(CATEGORY_QUESTIONS)) {
-  questions.forEach((q) => BANK.push({ ...q, cat }));
+  questions.forEach((q) => BANK.push({ difficulty: 'easy', ...q, cat }));
 }
 
 // Category summary for the lobby picker.
@@ -521,9 +876,10 @@ const CATEGORY_NAMES = new Set(CATEGORIES.map((c) => c.name));
 
 const history = require('./history');
 
-// Pick n questions, preferring the ones shown least often so the bank cycles
-// through before repeating. If `cats` is a non-empty list of valid category
-// names, only those categories are used; otherwise the whole bank is fair game.
+// Pick n questions, favouring harder ones first and, within the same
+// difficulty, the ones shown least often so the bank cycles through before
+// repeating. If `cats` is a non-empty list of valid category names, only those
+// categories are used; otherwise the whole bank is fair game.
 function pickQuestions(n, cats) {
   let pool = BANK;
   if (Array.isArray(cats) && cats.length) {
@@ -533,14 +889,20 @@ function pickQuestions(n, cats) {
       if (filtered.length) pool = filtered;
     }
   }
-  // Shuffle first so questions with the same show-count come out in random
-  // order, then a stable sort by show-count keeps the least-shown at the front.
+  // Shuffle first so questions that tie on difficulty and show-count come out in
+  // random order, then a stable sort puts harder and least-shown questions at
+  // the front. Harder questions win ties, so a game leans hard while still
+  // cycling through the bank within each difficulty tier.
   const a = pool.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
-  a.sort((x, y) => history.getCount(x.q) - history.getCount(y.q));
+  a.sort((x, y) => {
+    const rank = (DIFFICULTY_RANK[x.difficulty] ?? 2) - (DIFFICULTY_RANK[y.difficulty] ?? 2);
+    if (rank !== 0) return rank;
+    return history.getCount(x.q) - history.getCount(y.q);
+  });
   return a.slice(0, Math.min(n, a.length));
 }
 
