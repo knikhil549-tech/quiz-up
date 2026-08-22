@@ -604,7 +604,7 @@
       "Answer: " + "ABCD"[correctIdx] + (correctText ? " — " + correctText : "");
     $("reveal-explain").textContent = data.explanation || "";
 
-    renderBoard($("reveal-board"), data.scoreboard);
+    renderRace($("reveal-board"), scoreRaceEntries(data.scoreboard));
     $("reveal-next").textContent = data.isLast
       ? "Final scores coming up…"
       : "Next question in a moment…";
@@ -615,7 +615,7 @@
   socket.on("gameOver", (data) => {
     stopTick();
     const board = data.scoreboard || [];
-    renderBoard($("results-board"), board, data.winnerIds || []);
+    renderRace($("results-board"), scoreRaceEntries(board, data.winnerIds || []));
 
     const headline = $("results-headline");
     const sub = $("results-sub");
@@ -771,22 +771,23 @@
     });
     kb.classList.toggle("hidden", done);
 
-    // Opponents / players progress
+    // Race track: everyone's progress through their guesses, including me,
+    // so you can see your own standing against the opponents.
     const opps = d.opponents || [];
     $("wordle-opps").classList.toggle("hidden", opps.length === 0);
-    const list = $("wordle-opp-list");
-    list.innerHTML = "";
-    opps.forEach((o) => {
-      const li = document.createElement("li");
-      const name = document.createElement("span");
-      name.className = "bname";
-      name.textContent = o.name;
-      const pts = document.createElement("span");
-      pts.className = "pts";
-      pts.textContent = o.solved ? "✅ " + o.guessCount : o.done ? "❌ " + o.guessCount : o.guessCount + " / " + max;
-      li.append(makeAvatarEl(o.id, o.name), name, pts);
-      list.append(li);
-    });
+    if (opps.length) {
+      const mine = {
+        id: state.myId,
+        name: myName(),
+        guessCount: d.me.guesses.length,
+        solved: d.me.solved,
+        done: d.me.done,
+      };
+      renderRace(
+        $("wordle-opp-list"),
+        [mine, ...opps].map((o) => wordleRaceEntry(o, max))
+      );
+    }
 
     // Status message / end banner
     const msg = $("wordle-msg");
@@ -993,19 +994,19 @@
 
     const opps = (s.players || []).filter((p) => p.id !== state.myId);
     $("sudoku-opps").classList.toggle("hidden", opps.length === 0);
-    const list = $("sudoku-opp-list");
-    list.innerHTML = "";
-    opps.forEach((o) => {
-      const li = document.createElement("li");
-      const name = document.createElement("span");
-      name.className = "bname";
-      name.textContent = o.name;
-      const pts = document.createElement("span");
-      pts.className = "pts";
-      pts.textContent = o.solved ? "✅ solved" : o.filled + " / 81";
-      li.append(makeAvatarEl(o.id, o.name), name, pts);
-      list.append(li);
-    });
+    if (opps.length) {
+      renderRace(
+        $("sudoku-opp-list"),
+        (s.players || []).map((o) => ({
+          id: o.id,
+          name: o.name,
+          pct: Math.min(100, ((o.solved ? 81 : o.filled) / 81) * 100),
+          label: o.solved ? "Solved" : o.filled + " / 81",
+          isMe: o.id === state.myId,
+          badge: o.solved ? "solved" : null,
+        }))
+      );
+    }
 
     const banner = $("sudoku-banner");
     if (s.over) {
@@ -1096,7 +1097,7 @@
 
   // ============ WORD SCRAMBLE ============
   socket.on("scramble:start", () => {
-    state.scramble = { board: [], over: false, index: -1, solved: false };
+    state.scramble = { board: [], over: false, index: -1, solved: false, winnerIds: null };
   });
 
   socket.on("scramble:round", (d) => {
@@ -1165,6 +1166,7 @@
     const s = state.scramble || (state.scramble = {});
     s.over = true;
     s.board = d.scoreboard || [];
+    s.winnerIds = d.winnerIds || [];
 
     $("scramble-answer-row").classList.add("hidden");
     $("scramble-reveal").classList.add("hidden");
@@ -1221,7 +1223,7 @@
   function renderScrambleBoard() {
     const s = state.scramble;
     if (!s) return;
-    renderBoard($("scramble-board"), s.board || []);
+    renderRace($("scramble-board"), scoreRaceEntries(s.board || [], s.winnerIds));
   }
 
   function submitScramble() {
@@ -1344,26 +1346,22 @@
       msg.textContent = "";
     }
 
-    // Opponents.
+    // Race track: everyone's progress through the secret's letters.
     const opps = d.opponents || [];
     $("hangman-opps").classList.toggle("hidden", opps.length === 0);
-    const list = $("hangman-opp-list");
-    list.innerHTML = "";
-    opps.forEach((o) => {
-      const li = document.createElement("li");
-      const name = document.createElement("span");
-      name.className = "bname";
-      name.textContent = o.name;
-      const pts = document.createElement("span");
-      pts.className = "pts";
-      pts.textContent = o.solved
-        ? "✅ " + o.wrong + " miss"
-        : o.done
-        ? "❌ out"
-        : o.wrong + " / " + d.me.maxWrong + " miss";
-      li.append(makeAvatarEl(o.id, o.name), name, pts);
-      list.append(li);
-    });
+    if (opps.length) {
+      const mine = {
+        id: state.myId,
+        name: myName(),
+        revealed: (d.me.masked || []).filter(Boolean).length,
+        solved: d.me.solved,
+        done: d.me.done,
+      };
+      renderRace(
+        $("hangman-opp-list"),
+        [mine, ...opps].map((o) => hangmanRaceEntry(o, d.length || 1))
+      );
+    }
 
     // End banner.
     const banner = $("hangman-banner");
@@ -1550,23 +1548,105 @@
     return span;
   }
 
-  function renderBoard(ul, board, winnerIds) {
+  // Looks up the current player's own name from the lobby roster (server
+  // state payloads carry opponents' names but not always "me"'s).
+  function myName() {
+    const players = state.room && state.room.players;
+    const p = players && players.find((x) => x.id === state.myId);
+    return (p && p.name) || "You";
+  }
+
+  // Renders a race-track leaderboard: one lane per player, sorted by `pct`
+  // (progress toward the finish line, 0-100) descending, with their avatar
+  // riding along the lane. `entries`: [{ id, name, pct, label, isMe, badge }]
+  // where `badge` is "winner" | "solved" | "failed" | null.
+  function renderRace(ul, entries) {
     ul.innerHTML = "";
-    board.forEach((p, i) => {
+    ul.classList.add("race-track");
+    const sorted = entries.slice().sort((a, b) => b.pct - a.pct);
+    sorted.forEach((e, i) => {
+      const pct = Math.max(0, Math.min(100, e.pct));
       const li = document.createElement("li");
+      li.className = "race-lane" + (e.isMe ? " me" : "") + (e.badge === "winner" ? " winner" : "");
+
+      const head = document.createElement("div");
+      head.className = "race-head";
       const rank = document.createElement("span");
-      rank.className = "rank";
+      rank.className = "race-rank";
       rank.textContent = "#" + (i + 1);
       const name = document.createElement("span");
-      name.className = "bname";
-      name.textContent = p.name + (p.id === state.myId ? " (you)" : "");
-      const pts = document.createElement("span");
-      pts.className = "pts";
-      pts.textContent = p.score;
-      if (winnerIds && winnerIds.includes(p.id)) li.classList.add("winner");
-      li.append(rank, makeAvatarEl(p.id, p.name), name, pts);
+      name.className = "race-name";
+      name.textContent = e.name + (e.isMe ? " (you)" : "");
+      const label = document.createElement("span");
+      label.className = "race-label";
+      label.textContent = e.label;
+      head.append(rank, name, label);
+
+      const path = document.createElement("div");
+      path.className = "race-path";
+      const fill = document.createElement("div");
+      fill.className = "race-fill";
+      fill.style.width = pct + "%";
+      const runner = document.createElement("div");
+      runner.className = "race-runner" + (e.badge ? " " + e.badge : "");
+      runner.style.left = pct + "%";
+      runner.append(makeAvatarEl(e.id, e.name));
+      const flag = document.createElement("span");
+      flag.className = "race-flag";
+      flag.textContent = "🏁";
+      path.append(fill, runner, flag);
+
+      li.append(head, path);
       ul.append(li);
     });
+  }
+
+  // Turns a quiz/scramble scoreboard (array of { id, name, score }) into race
+  // entries: progress is relative to whoever's currently in the lead, so the
+  // leader always rides at the front of the pack.
+  function scoreRaceEntries(board, winnerIds) {
+    const max = board.reduce((m, p) => Math.max(m, p.score), 0);
+    return board.map((p) => ({
+      id: p.id,
+      name: p.name,
+      pct: max > 0 ? (p.score / max) * 100 : 0,
+      label: p.score,
+      isMe: p.id === state.myId,
+      badge: winnerIds && winnerIds.includes(p.id) ? "winner" : null,
+    }));
+  }
+
+  // Turns a Wordle player summary ({ id, name, guessCount, solved, done })
+  // into a race entry. The finish line is reserved for players who've
+  // actually solved it; everyone else's progress is how far through their
+  // guesses they are.
+  function wordleRaceEntry(o, maxGuesses) {
+    const pct = o.solved ? 100 : Math.min(95, (o.guessCount / maxGuesses) * 95);
+    const label = o.solved ? "Solved" : o.done ? "Out" : o.guessCount + " / " + maxGuesses;
+    return {
+      id: o.id,
+      name: o.name,
+      pct,
+      label,
+      isMe: o.id === state.myId,
+      badge: o.solved ? "solved" : o.done ? "failed" : null,
+    };
+  }
+
+  // Same idea for Hangman: progress is the fraction of the secret's letters
+  // revealed so far, with "solved" reserved for the finish line.
+  function hangmanRaceEntry(o, secretLen) {
+    const revealed = o.revealed || 0;
+    const pct = o.solved ? 100 : Math.min(95, (revealed / secretLen) * 95);
+    const label = o.solved ? "Solved" : o.done ? "Out" : revealed + " / " + secretLen;
+    return {
+      id: o.id,
+      name: o.name,
+      pct,
+      label,
+      isMe: o.id === state.myId,
+      badge: o.solved ? "solved" : o.done ? "failed" : null,
+    };
   }
 
   // ============ boot ============

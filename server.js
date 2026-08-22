@@ -744,6 +744,10 @@ function hangmanSummary(room) {
       id: p.id,
       name: p.name,
       wrong: b ? b.wrong : 0,
+      // How many of the secret's letters they've revealed so far (not which
+      // ones), so the client can show a race-track progress bar for
+      // opponents without leaking the actual letters.
+      revealed: b ? b.guessed.filter((ch) => g.secret.includes(ch)).length : 0,
       solved: b ? b.solved : false,
       done: b ? b.done : true,
     };

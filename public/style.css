@@ -929,44 +929,107 @@ h2 {
   font-size: 14px;
   margin: 8px 0 0;
 }
-.board {
+/* Race-track leaderboard: one lane per player, avatar riding along it at a
+   position proportional to their progress. Used for every scoreboard and
+   opponent-progress list across all games. */
+.race-track {
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
 }
-.board li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 4px;
+.race-lane {
+  padding: 10px 4px;
   border-bottom: 1px solid var(--line);
-  font-size: 16px;
 }
-.board li:last-child {
+.race-lane:last-child {
   border-bottom: none;
 }
-.board .rank {
-  color: var(--muted);
-  font-weight: 700;
-  width: 30px;
-}
-.board .bname {
-  flex: 1;
-  font-weight: 600;
-}
-.board .pts {
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.board li.winner {
+.race-lane.winner {
   background: #eeecff;
   border-radius: 12px;
   border-bottom: none;
-  padding-left: 10px;
-  padding-right: 10px;
+  padding: 10px 10px;
 }
-.board li.winner .pts {
+.race-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.race-rank {
+  color: var(--muted);
+  font-weight: 700;
+  width: 22px;
+  flex: none;
+}
+.race-name {
+  flex: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.race-lane.me .race-name {
   color: var(--accent);
+}
+.race-label {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  flex: none;
+}
+.race-lane.winner .race-label {
+  color: var(--accent);
+}
+.race-path {
+  position: relative;
+  height: 8px;
+  margin: 0 16px;
+  background: var(--bg);
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.race-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b9b3ff, var(--accent));
+  transition: width 0.5s ease;
+}
+.race-runner {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  transition: left 0.5s ease;
+}
+.race-runner .p-avatar,
+.race-runner .p-avatar-fallback {
+  width: 26px;
+  height: 26px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(28, 27, 46, 0.25);
+}
+.race-runner.solved .p-avatar,
+.race-runner.solved .p-avatar-fallback {
+  box-shadow: 0 0 0 2px var(--ok), 0 1px 3px rgba(28, 27, 46, 0.25);
+}
+.race-lane.winner .race-runner .p-avatar,
+.race-lane.winner .race-runner .p-avatar-fallback {
+  box-shadow: 0 0 0 2px #ffb300, 0 1px 3px rgba(28, 27, 46, 0.25);
+}
+.race-runner.failed .p-avatar,
+.race-runner.failed .p-avatar-fallback {
+  opacity: 0.5;
+}
+.race-flag {
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
 }
 
 /* Confetti overlay (shown briefly on a correct answer) */
