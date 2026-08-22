@@ -33,6 +33,8 @@
     room: null,
     joinUrl: null,
     gameType: "quiz",
+    avatar: null, // data URL of the selfie taken on the name screen, or null
+
     // quiz
     qIndex: -1,
     seconds: 30,
@@ -125,6 +127,7 @@
     $("name-sub").textContent = "Pick a name your friends will recognise.";
     $("input-name").value = "";
     $("name-error").textContent = "";
+    resetSelfie();
     show("name");
     $("input-name").focus();
   }
@@ -176,6 +179,7 @@
     $("name-sub").textContent = "What should everyone call you?";
     $("input-name").value = "";
     $("name-error").textContent = "";
+    resetSelfie();
     show("name");
     $("input-name").focus();
   }
@@ -187,8 +191,24 @@
   });
   $("btn-name-back").addEventListener("click", () => {
     $("input-code").value = "";
+    stopSelfieStream();
     show("home");
   });
+
+  // Clears any selfie from a previous visit to this screen so a fresh
+  // create/join attempt starts from the placeholder state.
+  function resetSelfie() {
+    stopSelfieStream();
+    state.avatar = null;
+    $("selfie-photo").classList.add("hidden");
+    $("selfie-photo").src = "";
+    $("selfie-video").classList.add("hidden");
+    $("selfie-placeholder").classList.remove("hidden");
+    $("btn-selfie-open").classList.remove("hidden");
+    $("btn-selfie-shoot").classList.add("hidden");
+    $("btn-selfie-retake").classList.add("hidden");
+    $("selfie-error").textContent = "";
+  }
 
   function submitName() {
     const name = $("input-name").value.trim();
@@ -200,19 +220,92 @@
     if (state.mode === "create") {
       socket.emit(
         "createRoom",
-        { name, gameType: state.pendingGame, difficulty: state.sudokuDifficulty },
+        { name, gameType: state.pendingGame, difficulty: state.sudokuDifficulty, avatar: state.avatar },
         onRoomJoined
       );
     } else {
-      socket.emit("joinRoom", { code: state.pendingCode, name }, onRoomJoined);
+      socket.emit("joinRoom", { code: state.pendingCode, name, avatar: state.avatar }, onRoomJoined);
     }
   }
+
+  // ============ SELFIE (avatar) ============
+  let selfieStream = null;
+
+  function stopSelfieStream() {
+    if (selfieStream) {
+      selfieStream.getTracks().forEach((t) => t.stop());
+      selfieStream = null;
+    }
+  }
+
+  $("btn-selfie-open").addEventListener("click", async () => {
+    $("selfie-error").textContent = "";
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $("selfie-error").textContent = "Camera not supported on this device.";
+      return;
+    }
+    try {
+      selfieStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
+      const video = $("selfie-video");
+      video.srcObject = selfieStream;
+      $("selfie-placeholder").classList.add("hidden");
+      $("selfie-photo").classList.add("hidden");
+      video.classList.remove("hidden");
+      $("btn-selfie-open").classList.add("hidden");
+      $("btn-selfie-shoot").classList.remove("hidden");
+      $("btn-selfie-retake").classList.add("hidden");
+    } catch (_) {
+      $("selfie-error").textContent = "Couldn't access the camera. You can still play without a photo.";
+    }
+  });
+
+  $("btn-selfie-shoot").addEventListener("click", () => {
+    const video = $("selfie-video");
+    if (!video.videoWidth) return;
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = 240;
+    canvas.height = 240;
+    const ctx = canvas.getContext("2d");
+    // Mirror the shot so it matches the mirrored preview the player just saw.
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      video,
+      (video.videoWidth - size) / 2,
+      (video.videoHeight - size) / 2,
+      size,
+      size,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+    state.avatar = canvas.toDataURL("image/jpeg", 0.7);
+
+    stopSelfieStream();
+    video.classList.add("hidden");
+    const photo = $("selfie-photo");
+    photo.src = state.avatar;
+    photo.classList.remove("hidden");
+    $("btn-selfie-shoot").classList.add("hidden");
+    $("btn-selfie-retake").classList.remove("hidden");
+  });
+
+  $("btn-selfie-retake").addEventListener("click", () => {
+    resetSelfie();
+    $("btn-selfie-open").click();
+  });
 
   function onRoomJoined(res) {
     if (!res || !res.ok) {
       $("name-error").textContent = (res && res.error) || "Something went wrong.";
       return;
     }
+    stopSelfieStream();
     state.myId = res.playerId;
     state.joinUrl = res.joinUrl || null;
     state.gameType = res.gameType || "quiz";
@@ -292,11 +385,9 @@
     list.innerHTML = "";
     room.players.forEach((p) => {
       const li = document.createElement("li");
-      const dot = document.createElement("span");
-      dot.className = "dot";
       const label = document.createElement("span");
       label.textContent = p.name;
-      li.append(dot, label);
+      li.append(makeAvatarEl(p.id, p.name), label);
       if (p.id === state.myId) {
         const you = document.createElement("span");
         you.className = "you";
@@ -426,6 +517,12 @@
     socket.emit("rematch", null, (res) => {
       if (res && !res.ok && errEl) errEl.textContent = res.error || "Could not restart.";
     });
+  }
+
+  // Sends everyone back to the lobby so the host can pick a different game
+  // (or the same one) from the switcher there, instead of an instant rematch.
+  function goDifferentGame() {
+    socket.emit("playAgain", null, () => {});
   }
 
   // ============ QUIZ ============
@@ -596,12 +693,14 @@
     const amHost = state.room && state.room.hostId === state.myId;
     const over = d.state === "over";
     $("btn-ttt-rematch").classList.toggle("hidden", !(over && amHost));
+    $("btn-ttt-diffgame").classList.toggle("hidden", !(over && amHost));
     $("ttt-waiting").classList.toggle("hidden", !(over && !amHost));
 
     show("ttt");
   });
 
   $("btn-ttt-rematch").addEventListener("click", () => hostRematch(null));
+  $("btn-ttt-diffgame").addEventListener("click", goDifferentGame);
 
   // ============ WORDLE ============
   const WK_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
@@ -685,7 +784,7 @@
       const pts = document.createElement("span");
       pts.className = "pts";
       pts.textContent = o.solved ? "✅ " + o.guessCount : o.done ? "❌ " + o.guessCount : o.guessCount + " / " + max;
-      li.append(name, pts);
+      li.append(makeAvatarEl(o.id, o.name), name, pts);
       list.append(li);
     });
 
@@ -724,6 +823,7 @@
 
     const amHost = state.room && state.room.hostId === state.myId;
     $("btn-wordle-rematch").classList.toggle("hidden", !(state.wordle.over && amHost));
+    $("btn-wordle-diffgame").classList.toggle("hidden", !(state.wordle.over && amHost));
     $("wordle-waiting").classList.toggle("hidden", !(state.wordle.over && !amHost));
   }
 
@@ -765,6 +865,7 @@
   }
 
   $("btn-wordle-rematch").addEventListener("click", () => hostRematch(null));
+  $("btn-wordle-diffgame").addEventListener("click", goDifferentGame);
 
   // Physical keyboard support for Wordle (handy on laptops).
   document.addEventListener("keydown", (e) => {
@@ -902,7 +1003,7 @@
       const pts = document.createElement("span");
       pts.className = "pts";
       pts.textContent = o.solved ? "✅ solved" : o.filled + " / 81";
-      li.append(name, pts);
+      li.append(makeAvatarEl(o.id, o.name), name, pts);
       list.append(li);
     });
 
@@ -931,6 +1032,7 @@
 
     const amHost = state.room && state.room.hostId === state.myId;
     $("btn-sudoku-rematch").classList.toggle("hidden", !(s.over && amHost));
+    $("btn-sudoku-diffgame").classList.toggle("hidden", !(s.over && amHost));
     $("sudoku-waiting").classList.toggle("hidden", !(s.over && !amHost));
   }
 
@@ -971,6 +1073,7 @@
   });
 
   $("btn-sudoku-rematch").addEventListener("click", () => hostRematch($("sudoku-msg")));
+  $("btn-sudoku-diffgame").addEventListener("click", goDifferentGame);
 
   // Physical keyboard for Sudoku (laptops).
   document.addEventListener("keydown", (e) => {
@@ -1017,6 +1120,7 @@
     $("scramble-reveal").classList.add("hidden");
     $("scramble-banner").classList.add("hidden");
     $("btn-scramble-rematch").classList.add("hidden");
+    $("btn-scramble-diffgame").classList.add("hidden");
     $("scramble-waiting").classList.add("hidden");
 
     renderScrambleBoard();
@@ -1097,6 +1201,7 @@
     renderScrambleBoard();
     const amHost = state.room && state.room.hostId === state.myId;
     $("btn-scramble-rematch").classList.toggle("hidden", !amHost);
+    $("btn-scramble-diffgame").classList.toggle("hidden", !amHost);
     $("scramble-waiting").classList.toggle("hidden", amHost);
     if (won) celebrate();
     show("scramble");
@@ -1150,6 +1255,7 @@
     if (e.key === "Enter") submitScramble();
   });
   $("btn-scramble-rematch").addEventListener("click", () => hostRematch($("scramble-msg")));
+  $("btn-scramble-diffgame").addEventListener("click", goDifferentGame);
 
   function startScrambleTick(endsAt, seconds) {
     stopScrambleTick();
@@ -1255,7 +1361,7 @@
         : o.done
         ? "❌ out"
         : o.wrong + " / " + d.me.maxWrong + " miss";
-      li.append(name, pts);
+      li.append(makeAvatarEl(o.id, o.name), name, pts);
       list.append(li);
     });
 
@@ -1286,6 +1392,7 @@
 
     const amHost = state.room && state.room.hostId === state.myId;
     $("btn-hangman-rematch").classList.toggle("hidden", !(h.over && amHost));
+    $("btn-hangman-diffgame").classList.toggle("hidden", !(h.over && amHost));
     $("hangman-waiting").classList.toggle("hidden", !(h.over && !amHost));
   }
 
@@ -1298,6 +1405,7 @@
   }
 
   $("btn-hangman-rematch").addEventListener("click", () => hostRematch(null));
+  $("btn-hangman-diffgame").addEventListener("click", goDifferentGame);
 
   // Physical keyboard support for Hangman (handy on laptops).
   document.addEventListener("keydown", (e) => {
@@ -1416,6 +1524,32 @@
     }
   }
 
+  // Looks up a player's selfie (if any) from the lobby roster, which carries
+  // avatars for the life of the room even once a game's own state payloads
+  // (scoreboards, opponent lists) stop including the full player record.
+  function avatarOf(id) {
+    const players = state.room && state.room.players;
+    const p = players && players.find((x) => x.id === id);
+    return p && p.avatar;
+  }
+
+  // Builds a small round avatar for `id`: their selfie if they took one,
+  // otherwise a colored circle with their initial.
+  function makeAvatarEl(id, name) {
+    const src = avatarOf(id);
+    if (src) {
+      const img = document.createElement("img");
+      img.className = "p-avatar";
+      img.src = src;
+      img.alt = "";
+      return img;
+    }
+    const span = document.createElement("span");
+    span.className = "p-avatar p-avatar-fallback";
+    span.textContent = (name || "?").trim().charAt(0).toUpperCase() || "?";
+    return span;
+  }
+
   function renderBoard(ul, board, winnerIds) {
     ul.innerHTML = "";
     board.forEach((p, i) => {
@@ -1430,7 +1564,7 @@
       pts.className = "pts";
       pts.textContent = p.score;
       if (winnerIds && winnerIds.includes(p.id)) li.classList.add("winner");
-      li.append(rank, name, pts);
+      li.append(rank, makeAvatarEl(p.id, p.name), name, pts);
       ul.append(li);
     });
   }

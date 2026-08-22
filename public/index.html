@@ -121,6 +121,28 @@
             maxlength="20"
             autocomplete="off"
           />
+
+          <div class="selfie-card">
+            <div id="selfie-frame" class="selfie-frame">
+              <video id="selfie-video" class="selfie-media hidden" autoplay playsinline muted></video>
+              <img id="selfie-photo" class="selfie-media hidden" alt="Your selfie" />
+              <span id="selfie-placeholder" class="selfie-placeholder">🙂</span>
+            </div>
+            <div class="selfie-actions">
+              <button id="btn-selfie-open" class="btn ghost small" type="button">
+                📷 Take a selfie
+              </button>
+              <button id="btn-selfie-shoot" class="btn primary small hidden" type="button">
+                Capture
+              </button>
+              <button id="btn-selfie-retake" class="btn ghost small hidden" type="button">
+                Retake
+              </button>
+            </div>
+            <p id="selfie-error" class="error"></p>
+            <p class="muted small">Optional — used as your avatar in the game.</p>
+          </div>
+
           <button id="btn-name-go" class="btn primary">Continue</button>
           <p id="name-error" class="error"></p>
           <button id="btn-name-back" class="btn ghost">Back</button>
@@ -242,6 +264,7 @@
         <div id="ttt-board" class="ttt-board"></div>
         <div class="lobby-actions">
           <button id="btn-ttt-rematch" class="btn primary hidden">Rematch</button>
+          <button id="btn-ttt-diffgame" class="btn ghost hidden">Different game</button>
           <p id="ttt-waiting" class="muted center hidden">
             Waiting for the host to start a rematch…
           </p>
@@ -273,6 +296,7 @@
 
         <div class="lobby-actions">
           <button id="btn-wordle-rematch" class="btn primary hidden">Rematch</button>
+          <button id="btn-wordle-diffgame" class="btn ghost hidden">Different game</button>
           <p id="wordle-waiting" class="muted center hidden">
             Waiting for the host to start a rematch…
           </p>
@@ -304,6 +328,7 @@
 
         <div class="lobby-actions">
           <button id="btn-sudoku-rematch" class="btn primary hidden">New puzzle</button>
+          <button id="btn-sudoku-diffgame" class="btn ghost hidden">Different game</button>
           <p id="sudoku-waiting" class="muted center hidden">
             Waiting for the host to start a new puzzle…
           </p>
@@ -356,6 +381,7 @@
 
         <div class="lobby-actions">
           <button id="btn-scramble-rematch" class="btn primary hidden">Play again</button>
+          <button id="btn-scramble-diffgame" class="btn ghost hidden">Different game</button>
           <p id="scramble-waiting" class="muted center hidden">
             Waiting for the host to start a new game…
           </p>
@@ -388,6 +414,7 @@
 
         <div class="lobby-actions">
           <button id="btn-hangman-rematch" class="btn primary hidden">Rematch</button>
+          <button id="btn-hangman-diffgame" class="btn ghost hidden">Different game</button>
           <p id="hangman-waiting" class="muted center hidden">
             Waiting for the host to start a rematch…
           </p>

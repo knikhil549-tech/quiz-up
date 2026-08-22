@@ -126,6 +126,7 @@ function lobbyState(room) {
       name: p.name,
       score: p.score,
       isHost: p.id === room.hostId,
+      avatar: p.avatar || null,
     })),
   };
 }
@@ -137,6 +138,17 @@ function broadcastLobby(room) {
 function cleanName(name, fallback) {
   const n = (name || '').toString().trim().slice(0, 20);
   return n || fallback;
+}
+
+// Selfie avatars: a small base64 data URL the client captured from the
+// camera. Reject anything that isn't an image data URL, and cap the size so
+// one bad payload can't bloat a socket message.
+const MAX_AVATAR_CHARS = 250000; // ~180KB of image data as base64
+function cleanAvatar(avatar) {
+  if (typeof avatar !== 'string') return null;
+  if (avatar.length > MAX_AVATAR_CHARS) return null;
+  if (!/^data:image\/(png|jpe?g|webp);base64,/.test(avatar)) return null;
+  return avatar;
 }
 
 // Live stats for the home screen: how many people are in a room right now.
@@ -802,7 +814,7 @@ io.on('connection', (socket) => {
   socket.data.roomCode = null;
   socket.emit('stats', statsPayload()); // current count for the home screen
 
-  socket.on('createRoom', async ({ name, gameType, difficulty } = {}, cb) => {
+  socket.on('createRoom', async ({ name, gameType, difficulty, avatar } = {}, cb) => {
     const type = GAMES[gameType] ? gameType : 'quiz';
     const code = makeCode();
     const room = {
@@ -815,7 +827,12 @@ io.on('connection', (socket) => {
       difficulty: cleanDifficulty(difficulty),
     };
     rooms.set(code, room);
-    room.players.push({ id: socket.id, name: cleanName(name, 'Host'), score: 0 });
+    room.players.push({
+      id: socket.id,
+      name: cleanName(name, 'Host'),
+      score: 0,
+      avatar: cleanAvatar(avatar),
+    });
     socket.join(code);
     socket.data.roomCode = code;
 
@@ -856,7 +873,7 @@ io.on('connection', (socket) => {
     broadcastStats();
   });
 
-  socket.on('joinRoom', ({ code, name } = {}, cb) => {
+  socket.on('joinRoom', ({ code, name, avatar } = {}, cb) => {
     code = (code || '').toString().toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) return cb && cb({ ok: false, error: 'Room not found' });
@@ -866,7 +883,12 @@ io.on('connection', (socket) => {
     if (room.players.length >= lim.max)
       return cb && cb({ ok: false, error: `Room is full (${lim.max} max)` });
 
-    room.players.push({ id: socket.id, name: cleanName(name, 'Player'), score: 0 });
+    room.players.push({
+      id: socket.id,
+      name: cleanName(name, 'Player'),
+      score: 0,
+      avatar: cleanAvatar(avatar),
+    });
     socket.join(code);
     socket.data.roomCode = code;
 
@@ -950,8 +972,11 @@ io.on('connection', (socket) => {
     maybeRevealEarly(room);
   });
 
-  // Quiz "play again" returns everyone to the lobby (so the host can re-pick
-  // categories). Tic Tac Toe and Wordle use the quicker "rematch" instead.
+  // Sends everyone back to the lobby (scores reset) so the host can re-pick
+  // categories, change difficulty, or switch to a different game entirely via
+  // the lobby's game switcher. Used by Quiz's "Play again" and by every game's
+  // "Different game" button. The quicker same-game "rematch" (below) skips
+  // the lobby detour.
   socket.on('playAgain', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return cb && cb({ ok: false, error: 'Room no longer exists' });
