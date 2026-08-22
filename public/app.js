@@ -526,7 +526,11 @@
   }
 
   // ============ QUIZ ============
-  socket.on("gameStarted", () => {});
+  socket.on("gameStarted", (data) => {
+    // A perfect run's score, so the race track shows progress through the
+    // whole game rather than just standing relative to the leader.
+    state.quizMax = (data && data.maxScore) || 0;
+  });
 
   socket.on("question", (data) => {
     stopTick();
@@ -604,7 +608,7 @@
       "Answer: " + "ABCD"[correctIdx] + (correctText ? " — " + correctText : "");
     $("reveal-explain").textContent = data.explanation || "";
 
-    renderRace($("reveal-board"), scoreRaceEntries(data.scoreboard));
+    renderRace($("reveal-board"), scoreRaceEntries(data.scoreboard, state.quizMax));
     $("reveal-next").textContent = data.isLast
       ? "Final scores coming up…"
       : "Next question in a moment…";
@@ -615,7 +619,7 @@
   socket.on("gameOver", (data) => {
     stopTick();
     const board = data.scoreboard || [];
-    renderRace($("results-board"), scoreRaceEntries(board, data.winnerIds || []));
+    renderRace($("results-board"), scoreRaceEntries(board, state.quizMax, data.winnerIds || []));
 
     const headline = $("results-headline");
     const sub = $("results-sub");
@@ -1096,8 +1100,9 @@
   });
 
   // ============ WORD SCRAMBLE ============
-  socket.on("scramble:start", () => {
+  socket.on("scramble:start", (data) => {
     state.scramble = { board: [], over: false, index: -1, solved: false, winnerIds: null };
+    state.scrambleMax = (data && data.maxScore) || 0;
   });
 
   socket.on("scramble:round", (d) => {
@@ -1223,7 +1228,7 @@
   function renderScrambleBoard() {
     const s = state.scramble;
     if (!s) return;
-    renderRace($("scramble-board"), scoreRaceEntries(s.board || [], s.winnerIds));
+    renderRace($("scramble-board"), scoreRaceEntries(s.board || [], state.scrambleMax, s.winnerIds));
   }
 
   function submitScramble() {
@@ -1560,56 +1565,81 @@
   // (progress toward the finish line, 0-100) descending, with their avatar
   // riding along the lane. `entries`: [{ id, name, pct, label, isMe, badge }]
   // where `badge` is "winner" | "solved" | "failed" | null.
+  //
+  // Lane elements persist across calls (keyed by player id on the <ul> via
+  // `_raceLanes`) instead of being torn down and rebuilt, so updating a
+  // lane's `left`/`width` lets the CSS transitions animate the avatar
+  // sliding from its last position to its new one rather than snapping.
+  // Reordering (rank changes) is animated separately with a FLIP transform,
+  // since reflow alone gives DOM moves no transition to animate.
   function renderRace(ul, entries) {
-    ul.innerHTML = "";
     ul.classList.add("race-track");
+    const lanes = ul._raceLanes || (ul._raceLanes = new Map());
     const sorted = entries.slice().sort((a, b) => b.pct - a.pct);
+
+    // FLIP step 1 ("First"): remember where every existing lane sits now.
+    const firstTops = new Map();
+    lanes.forEach((li, id) => firstTops.set(id, li.getBoundingClientRect().top));
+
+    const seen = new Set();
     sorted.forEach((e, i) => {
       const pct = Math.max(0, Math.min(100, e.pct));
-      const li = document.createElement("li");
+      let li = lanes.get(e.id);
+      if (!li) {
+        li = document.createElement("li");
+        li.innerHTML =
+          '<div class="race-head"><span class="race-rank"></span><span class="race-name"></span><span class="race-label"></span></div>' +
+          '<div class="race-path"><div class="race-fill"></div><div class="race-runner"></div><span class="race-flag">🏁</span></div>';
+        lanes.set(e.id, li);
+      }
       li.className = "race-lane" + (e.isMe ? " me" : "") + (e.badge === "winner" ? " winner" : "");
-
-      const head = document.createElement("div");
-      head.className = "race-head";
-      const rank = document.createElement("span");
-      rank.className = "race-rank";
-      rank.textContent = "#" + (i + 1);
-      const name = document.createElement("span");
-      name.className = "race-name";
-      name.textContent = e.name + (e.isMe ? " (you)" : "");
-      const label = document.createElement("span");
-      label.className = "race-label";
-      label.textContent = e.label;
-      head.append(rank, name, label);
-
-      const path = document.createElement("div");
-      path.className = "race-path";
-      const fill = document.createElement("div");
-      fill.className = "race-fill";
-      fill.style.width = pct + "%";
-      const runner = document.createElement("div");
+      li.querySelector(".race-rank").textContent = "#" + (i + 1);
+      li.querySelector(".race-name").textContent = e.name + (e.isMe ? " (you)" : "");
+      li.querySelector(".race-label").textContent = e.label;
+      li.querySelector(".race-fill").style.width = pct + "%";
+      const runner = li.querySelector(".race-runner");
       runner.className = "race-runner" + (e.badge ? " " + e.badge : "");
       runner.style.left = pct + "%";
-      runner.append(makeAvatarEl(e.id, e.name));
-      const flag = document.createElement("span");
-      flag.className = "race-flag";
-      flag.textContent = "🏁";
-      path.append(fill, runner, flag);
+      if (!runner.firstChild) runner.append(makeAvatarEl(e.id, e.name));
 
-      li.append(head, path);
-      ul.append(li);
+      ul.append(li); // moves existing lanes too, so DOM order tracks rank
+      seen.add(e.id);
+    });
+
+    // Drop lanes for players no longer in this list (left the room, etc.).
+    lanes.forEach((li, id) => {
+      if (!seen.has(id)) {
+        li.remove();
+        lanes.delete(id);
+      }
+    });
+
+    // FLIP steps 2-4 ("Last, Invert, Play"): snap each lane back to where it
+    // used to be with a transform, then release it so the browser animates
+    // to the real (new) position.
+    lanes.forEach((li, id) => {
+      const from = firstTops.get(id);
+      if (from == null) return; // just-added lane: nothing to animate from
+      const dy = from - li.getBoundingClientRect().top;
+      if (!dy) return;
+      li.style.transition = "none";
+      li.style.transform = "translateY(" + dy + "px)";
+      requestAnimationFrame(() => {
+        li.style.transition = "transform 0.5s ease";
+        li.style.transform = "";
+      });
     });
   }
 
   // Turns a quiz/scramble scoreboard (array of { id, name, score }) into race
-  // entries: progress is relative to whoever's currently in the lead, so the
-  // leader always rides at the front of the pack.
-  function scoreRaceEntries(board, winnerIds) {
-    const max = board.reduce((m, p) => Math.max(m, p.score), 0);
+  // entries: progress is the player's score against a perfect run's score
+  // (`maxScore`, sent by the server at game start), so 1 correct answer out
+  // of 10 questions sits at 10% rather than jumping straight to the front.
+  function scoreRaceEntries(board, maxScore, winnerIds) {
     return board.map((p) => ({
       id: p.id,
       name: p.name,
-      pct: max > 0 ? (p.score / max) * 100 : 0,
+      pct: maxScore > 0 ? (p.score / maxScore) * 100 : 0,
       label: p.score,
       isMe: p.id === state.myId,
       badge: winnerIds && winnerIds.includes(p.id) ? "winner" : null,

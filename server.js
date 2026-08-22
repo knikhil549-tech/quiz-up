@@ -182,7 +182,12 @@ function startQuiz(room, cats) {
     answers: new Map(),
     timer: null,
   };
-  io.to(room.code).emit('gameStarted', { total: questions.length });
+  io.to(room.code).emit('gameStarted', {
+    total: questions.length,
+    // The score a perfect run would earn, so the client can show race-track
+    // progress toward the whole game rather than just relative to the leader.
+    maxScore: questions.length * POINTS_PER_CORRECT,
+  });
   nextQuestion(room);
 }
 
@@ -626,7 +631,11 @@ function startScramble(room) {
     solveSeq: 0,
     timer: null,
   };
-  io.to(room.code).emit('scramble:start', { total: words.length });
+  io.to(room.code).emit('scramble:start', {
+    total: words.length,
+    // The score a perfect run (first to solve every round) would earn.
+    maxScore: words.length * (SCRAMBLE_BASE + SCRAMBLE_SPEED_BONUS),
+  });
   nextScramble(room);
 }
 
