@@ -4,6 +4,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 const { CATEGORIES, pickQuestions } = require('./questions');
+const { pickFunPrompts } = require('./fun-questions');
 const history = require('./history');
 const { pickWord } = require('./words');
 const { VALID: WORDLE_DICT } = require('./wordle-dict');
@@ -34,6 +35,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const QUESTIONS_PER_GAME = 10;
 const POINTS_PER_CORRECT = 2;
 const ANSWER_SECONDS = 30;
+const FUN_ANSWER_MAX = 30; // characters, enough for the "1 or 2 words" ask
 const REVEAL_SECONDS = 5;
 
 // Wordle tuning.
@@ -169,10 +171,52 @@ function scoreboard(room) {
     .map((p) => ({ id: p.id, name: p.name, score: p.score }));
 }
 
+// Builds the question list for a round: mostly trivia, plus one fun question
+// per player (see fun-questions.js) spread evenly through the game. Fun slots
+// are placed at evenly spaced positions rather than at random so a round never
+// opens with one or stacks two back to back.
+function buildQuizQuestions(room, cats) {
+  const total = QUESTIONS_PER_GAME;
+  const subjects = room.players.slice();
+  for (let i = subjects.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [subjects[i], subjects[j]] = [subjects[j], subjects[i]];
+  }
+  const funCount = Math.min(subjects.length, Math.max(0, total - 1));
+  const trivia = pickQuestions(total - funCount, cats);
+
+  const funSlots = new Set();
+  for (let i = 0; i < funCount; i++) {
+    funSlots.add(Math.round(((i + 1) * total) / (funCount + 1)));
+  }
+
+  const prompts = pickFunPrompts(funCount);
+  const out = [];
+  let f = 0;
+  let t = 0;
+  for (let i = 0; i < total; i++) {
+    if (funSlots.has(i) && f < funCount && f < prompts.length) {
+      const subject = subjects[f];
+      out.push({
+        fun: true,
+        q: prompts[f].q.replace('{name}', subject.name),
+        hint: prompts[f].hint,
+        subjectId: subject.id,
+        subjectName: subject.name,
+      });
+      f += 1;
+    } else if (t < trivia.length) {
+      out.push(trivia[t]);
+      t += 1;
+    }
+  }
+  return out;
+}
+
 function startQuiz(room, cats) {
   room.state = 'playing';
   room.players.forEach((p) => (p.score = 0));
-  const questions = pickQuestions(QUESTIONS_PER_GAME, cats);
+  const questions = buildQuizQuestions(room, cats);
   room.game = {
     type: 'quiz',
     questions,
@@ -208,15 +252,22 @@ function nextQuestion(room) {
   g.endsAt = Date.now() + ANSWER_SECONDS * 1000;
 
   const q = g.questions[g.qIndex];
-  history.recordShown(q.q); // remember this question was shown
+  // Fun questions are generated per room (they carry a player's name), so they
+  // are not part of the shared bank the history file cycles through.
+  if (!q.fun) history.recordShown(q.q);
   io.to(room.code).emit('question', {
     index: g.qIndex,
     total: g.questions.length,
     question: q.q,
-    options: q.options,
+    options: q.fun ? null : q.options,
     seconds: ANSWER_SECONDS,
     endsAt: g.endsAt,
     pointsPerCorrect: POINTS_PER_CORRECT,
+    // Fun questions take a short typed answer instead of one of four options.
+    fun: !!q.fun,
+    hint: q.fun ? q.hint : null,
+    subjectId: q.fun ? q.subjectId : null,
+    subjectName: q.fun ? q.subjectName : null,
   });
 
   clearTimeout(g.timer);
@@ -231,15 +282,31 @@ function revealAnswer(room) {
 
   const q = g.questions[g.qIndex];
 
+  // Fun questions have no right answer: one submission is drawn at random and
+  // its author takes the points. Everyone's answer is sent back so the reveal
+  // can show the whole list, which is the actual fun of it.
+  let funAnswers = null;
+  if (q.fun) {
+    const submitted = room.players
+      .filter((p) => g.answers.has(p.id))
+      .map((p) => ({ id: p.id, name: p.name, text: g.answers.get(p.id).text }));
+    const winner = submitted.length
+      ? submitted[Math.floor(Math.random() * submitted.length)]
+      : null;
+    funAnswers = submitted.map((a) => ({ ...a, won: !!winner && a.id === winner.id }));
+  }
+
   const results = {};
   room.players.forEach((p) => {
     const a = g.answers.get(p.id);
     const answered = !!a;
-    const correct = answered && a.choice === q.correct;
+    const correct = q.fun
+      ? !!(funAnswers || []).find((x) => x.id === p.id && x.won)
+      : answered && a.choice === q.correct;
     if (correct) p.score += POINTS_PER_CORRECT;
     results[p.id] = {
       answered,
-      choice: answered ? a.choice : null,
+      choice: !q.fun && answered ? a.choice : null,
       correct,
       gained: correct ? POINTS_PER_CORRECT : 0,
     };
@@ -260,12 +327,15 @@ function revealAnswer(room) {
 
   io.to(room.code).emit('reveal', {
     index: g.qIndex,
-    correct: q.correct,
-    explanation: q.explanation || null,
+    correct: q.fun ? null : q.correct,
+    explanation: q.fun ? null : q.explanation || null,
     results,
     scoreboard: scoreboard(room),
     seconds: REVEAL_SECONDS,
     isLast: g.qIndex >= g.questions.length - 1,
+    fun: !!q.fun,
+    subjectName: q.fun ? q.subjectName : null,
+    answers: funAnswers,
   });
 
   g.timer = setTimeout(() => nextQuestion(room), REVEAL_SECONDS * 1000);
@@ -987,16 +1057,28 @@ io.on('connection', (socket) => {
   });
 
   // ---- Quiz ----
-  socket.on('answer', ({ index, choice } = {}, cb) => {
+  socket.on('answer', ({ index, choice, text } = {}, cb) => {
     const room = rooms.get(socket.data.roomCode);
     const g = room && room.game;
     if (!g || g.type !== 'quiz' || g.phase !== 'question') return cb && cb({ ok: false });
     if (index !== g.qIndex) return cb && cb({ ok: false });
     if (g.answers.has(socket.id)) return cb && cb({ ok: false });
-    if (typeof choice !== 'number' || choice < 0 || choice > 3)
-      return cb && cb({ ok: false });
 
-    g.answers.set(socket.id, { choice, at: Date.now() });
+    const q = g.questions[g.qIndex];
+    if (q && q.fun) {
+      // A short typed answer. Collapse whitespace and cap the length so one
+      // player cannot paste an essay into the reveal list.
+      const clean = String(text == null ? '' : text)
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, FUN_ANSWER_MAX);
+      if (!clean) return cb && cb({ ok: false });
+      g.answers.set(socket.id, { text: clean, at: Date.now() });
+    } else {
+      if (typeof choice !== 'number' || choice < 0 || choice > 3)
+        return cb && cb({ ok: false });
+      g.answers.set(socket.id, { choice, at: Date.now() });
+    }
     if (cb) cb({ ok: true });
     io.to(room.code).emit('answerCount', {
       answered: g.answers.size,

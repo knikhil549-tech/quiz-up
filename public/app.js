@@ -43,6 +43,7 @@
     seconds: 30,
     endsAt: 0,
     picked: null,
+    funQ: false, // current question is a fun (typed-answer) one
     tick: null,
     selectedCats: null,
     // wordle
@@ -542,14 +543,42 @@
     state.seconds = data.seconds;
     state.endsAt = data.endsAt;
     state.picked = null;
+    state.funQ = !!data.fun;
 
     $("q-progress").textContent = "Q" + (data.index + 1) + " / " + data.total;
     $("q-text").textContent = data.question;
     $("q-status").textContent = "";
 
     const wrap = $("q-options");
+    const form = $("q-fun");
+    const badge = $("q-fun-badge");
     wrap.innerHTML = "";
-    data.options.forEach((opt, i) => {
+
+    if (state.funQ) {
+      // A fun question about one player: type a short answer instead of
+      // picking an option. There is no wrong answer, one submission wins.
+      wrap.classList.add("hidden");
+      form.classList.remove("hidden");
+      badge.classList.remove("hidden");
+      const av = $("q-fun-avatar");
+      av.innerHTML = "";
+      av.append(makeAvatarEl(data.subjectId, data.subjectName));
+      const input = $("q-fun-input");
+      input.value = "";
+      input.disabled = false;
+      input.placeholder = data.hint || "1 or 2 words";
+      $("q-fun-send").disabled = false;
+      show("question");
+      startTick();
+      // Focus after the screen is visible, or mobile keyboards ignore it.
+      setTimeout(() => input.focus(), 50);
+      return;
+    }
+
+    wrap.classList.remove("hidden");
+    form.classList.add("hidden");
+    badge.classList.add("hidden");
+    (data.options || []).forEach((opt, i) => {
       const btn = document.createElement("button");
       btn.className = "option";
       btn.innerHTML =
@@ -561,6 +590,21 @@
 
     show("question");
     startTick();
+  });
+
+  // Submitting a fun question's typed answer.
+  $("q-fun").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (state.picked !== null) return;
+    const input = $("q-fun-input");
+    const text = input.value.replace(/\s+/g, " ").trim();
+    if (!text) return;
+    ensureAudio();
+    state.picked = text;
+    input.disabled = true;
+    $("q-fun-send").disabled = true;
+    $("q-status").textContent = "Locked in — waiting for others…";
+    socket.emit("answer", { index: state.qIndex, text }, () => {});
   });
 
   function pickAnswer(choice, btn) {
@@ -587,30 +631,35 @@
   socket.on("reveal", (data) => {
     stopTick();
     const mine = data.results && data.results[state.myId];
-    const correctIdx = data.correct;
 
     const icon = $("reveal-icon");
     const head = $("reveal-headline");
-    if (!mine || !mine.answered) {
-      icon.textContent = "⏳";
-      head.textContent = "Time's up";
-      head.className = "";
-    } else if (mine.correct) {
-      icon.textContent = "✅";
-      head.textContent = "Correct! +" + mine.gained;
-      head.className = "ok-text";
-      celebrate();
+    if (data.fun) {
+      renderFunReveal(data, mine, icon, head);
     } else {
-      icon.textContent = "❌";
-      head.textContent = "Not quite";
-      head.className = "danger-text";
-    }
+      $("reveal-answers-card").classList.add("hidden");
+      if (!mine || !mine.answered) {
+        icon.textContent = "⏳";
+        head.textContent = "Time's up";
+        head.className = "";
+      } else if (mine.correct) {
+        icon.textContent = "✅";
+        head.textContent = "Correct! +" + mine.gained;
+        head.className = "ok-text";
+        celebrate();
+      } else {
+        icon.textContent = "❌";
+        head.textContent = "Not quite";
+        head.className = "danger-text";
+      }
 
-    const optBtns = document.querySelectorAll("#q-options .option .opt-text");
-    const correctText = optBtns[correctIdx] ? optBtns[correctIdx].textContent : "";
-    $("reveal-correct").textContent =
-      "Answer: " + "ABCD"[correctIdx] + (correctText ? " — " + correctText : "");
-    $("reveal-explain").textContent = data.explanation || "";
+      const correctIdx = data.correct;
+      const optBtns = document.querySelectorAll("#q-options .option .opt-text");
+      const correctText = optBtns[correctIdx] ? optBtns[correctIdx].textContent : "";
+      $("reveal-correct").textContent =
+        "Answer: " + "ABCD"[correctIdx] + (correctText ? " — " + correctText : "");
+      $("reveal-explain").textContent = data.explanation || "";
+    }
 
     renderRace($("reveal-board"), scoreRaceEntries(data.scoreboard, state.quizMax));
     $("reveal-next").textContent = data.isLast
@@ -619,6 +668,66 @@
 
     show("reveal");
   });
+
+  // Reveal for a fun question: no answer was ever right, so the interesting
+  // part is the list of what everyone said, with the randomly drawn winner
+  // called out. Everything else on the reveal screen behaves as usual.
+  function renderFunReveal(data, mine, icon, head) {
+    const answers = data.answers || [];
+    const won = answers.find((a) => a.won);
+
+    if (mine && mine.correct) {
+      icon.textContent = "🎉";
+      head.textContent = "Your answer won! +" + mine.gained;
+      head.className = "ok-text";
+      celebrate();
+    } else if (mine && mine.answered) {
+      icon.textContent = "🎲";
+      head.textContent = "Drawn out this time";
+      head.className = "";
+    } else {
+      icon.textContent = "⏳";
+      head.textContent = "Time's up";
+      head.className = "";
+    }
+
+    $("reveal-correct").textContent = won
+      ? "Winning answer: " + won.text + " (" + won.name + ")"
+      : "Nobody got an answer in.";
+    $("reveal-explain").textContent = "";
+
+    const card = $("reveal-answers-card");
+    const list = $("reveal-answers");
+    list.innerHTML = "";
+    if (!answers.length) {
+      card.classList.add("hidden");
+      return;
+    }
+    $("reveal-answers-title").textContent =
+      (data.subjectName || "They") + ", according to the room";
+    answers.forEach((a) => {
+      const li = document.createElement("li");
+      li.className = "fun-answer" + (a.won ? " won" : "");
+      const who = document.createElement("span");
+      who.className = "fun-answer-who";
+      who.append(makeAvatarEl(a.id, a.name));
+      const txt = document.createElement("span");
+      txt.className = "fun-answer-text";
+      txt.textContent = a.text;
+      const by = document.createElement("span");
+      by.className = "fun-answer-by";
+      by.textContent = a.id === state.myId ? "you" : a.name;
+      li.append(who, txt, by);
+      if (a.won) {
+        const tag = document.createElement("span");
+        tag.className = "fun-answer-tag";
+        tag.textContent = "🏆";
+        li.append(tag);
+      }
+      list.append(li);
+    });
+    card.classList.remove("hidden");
+  }
 
   socket.on("gameOver", (data) => {
     stopTick();

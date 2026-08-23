@@ -213,10 +213,29 @@
         <div class="timerbar"><div id="timerbar-fill" class="timerbar-fill"></div></div>
 
         <div class="card q-card">
+          <div id="q-fun-badge" class="fun-badge hidden">
+            <span id="q-fun-avatar" class="fun-badge-avatar"></span>
+            <span>Fun question</span>
+          </div>
           <h2 id="q-text" class="q-text"></h2>
         </div>
 
         <div id="q-options" class="options"></div>
+
+        <form id="q-fun" class="fun-form hidden" autocomplete="off">
+          <input
+            id="q-fun-input"
+            class="fun-input"
+            type="text"
+            maxlength="30"
+            placeholder="1 or 2 words"
+            enterkeyhint="send"
+          />
+          <button id="q-fun-send" class="btn primary" type="submit">Lock it in</button>
+          <p class="muted center small">
+            No wrong answers. One gets picked at random and wins the points.
+          </p>
+        </form>
 
         <p id="q-status" class="muted center small"></p>
       </section>
@@ -228,6 +247,10 @@
           <h2 id="reveal-headline">Correct!</h2>
           <p id="reveal-correct" class="muted"></p>
           <p id="reveal-explain" class="explain"></p>
+        </div>
+        <div id="reveal-answers-card" class="card hidden">
+          <h2 id="reveal-answers-title">Everyone said</h2>
+          <ul id="reveal-answers" class="fun-answers"></ul>
         </div>
         <div class="card">
           <h2>Scores</h2>
