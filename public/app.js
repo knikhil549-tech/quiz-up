@@ -12,6 +12,7 @@
     lobby: $("screen-lobby"),
     question: $("screen-question"),
     reveal: $("screen-reveal"),
+    replay: $("screen-replay"),
     results: $("screen-results"),
     ttt: $("screen-ttt"),
     wordle: $("screen-wordle"),
@@ -37,6 +38,8 @@
 
     // quiz
     qIndex: -1,
+    replayTimer: null,
+    finishReplay: null, // set while the end-of-round replay is running
     seconds: 30,
     endsAt: 0,
     picked: null,
@@ -530,6 +533,7 @@
     // A perfect run's score, so the race track shows progress through the
     // whole game rather than just standing relative to the leader.
     state.quizMax = (data && data.maxScore) || 0;
+    stopReplay();
   });
 
   socket.on("question", (data) => {
@@ -618,6 +622,82 @@
 
   socket.on("gameOver", (data) => {
     stopTick();
+    if (data && data.maxScore) state.quizMax = data.maxScore;
+    const frames = (data && data.replay) || [];
+    // Run the whole session back as a race first, then declare the winner.
+    if (frames.length > 1) {
+      playSessionReplay(frames, data.winnerIds || [], () => showResults(data));
+    } else {
+      showResults(data);
+    }
+  });
+
+  // Replays the round question by question on the race track: every lane
+  // starts at zero and the sheep run forward one question at a time, with a
+  // "+points" pop on whoever got that question right. Calls `done` once the
+  // final standings have been held on screen for a beat.
+  function playSessionReplay(frames, winnerIds, done) {
+    stopReplay(); // never let two replays drive the same board
+    const board = $("replay-board");
+    // Stretches the lane transitions to nearly a full step, so the sheep run
+    // continuously through the round instead of hopping and pausing.
+    board.classList.add("replaying");
+    board.innerHTML = "";
+    board._raceLanes = null;
+    const total = frames.length;
+
+    // Frame 0 of the replay is the starting line: everyone on zero.
+    const startBoard = frames[0].board.map((p) => ({ id: p.id, name: p.name, score: 0 }));
+    $("replay-step").textContent = "Start";
+    $("replay-q").textContent = "";
+    $("replay-bar-fill").style.width = "0%";
+    renderRace(board, scoreRaceEntries(startBoard, state.quizMax), FIXED_LANES);
+    show("replay");
+
+    let i = 0;
+    const step = () => {
+      if (i >= total) {
+        // Hold on the final standings, then hand over to the results screen.
+        state.replayTimer = setTimeout(finish, 1400);
+        return;
+      }
+      const f = frames[i];
+      const last = i === total - 1;
+      $("replay-step").textContent = "Q" + (i + 1) + " / " + total;
+      $("replay-q").textContent = f.question || "";
+      $("replay-bar-fill").style.width = ((i + 1) / total) * 100 + "%";
+      const entries = scoreRaceEntries(f.board, state.quizMax, last ? winnerIds : null);
+      f.board.forEach((p, n) => {
+        if (p.gained > 0) {
+          entries[n].pop = true;
+          entries[n].gain = "+" + p.gained;
+        }
+      });
+      renderRace(board, entries, FIXED_LANES);
+      i += 1;
+      state.replayTimer = setTimeout(step, last ? 1200 : REPLAY_STEP_MS);
+    };
+
+    const finish = () => {
+      if (!state.finishReplay) return;
+      clearTimeout(state.replayTimer);
+      state.replayTimer = null;
+      state.finishReplay = null;
+      board.classList.remove("replaying");
+      done();
+    };
+    state.finishReplay = finish;
+    state.replayTimer = setTimeout(step, 900);
+  }
+
+  const REPLAY_STEP_MS = 1000;
+  const FIXED_LANES = { fixedOrder: true };
+
+  $("btn-skip-replay").addEventListener("click", () => {
+    if (state.finishReplay) state.finishReplay();
+  });
+
+  function showResults(data) {
     const board = data.scoreboard || [];
     renderRace($("results-board"), scoreRaceEntries(board, state.quizMax, data.winnerIds || []));
 
@@ -642,10 +722,20 @@
     $("btn-again").classList.toggle("hidden", !amHost);
     $("results-waiting").classList.toggle("hidden", amHost);
     show("results");
-  });
+  }
+
+  // A new round (or a trip back to the lobby) cancels any replay still running.
+  function stopReplay() {
+    clearTimeout(state.replayTimer);
+    state.replayTimer = null;
+    state.finishReplay = null;
+  }
 
   $("btn-again").addEventListener("click", () => socket.emit("playAgain", null, () => {}));
-  socket.on("backToLobby", () => show("lobby"));
+  socket.on("backToLobby", () => {
+    stopReplay();
+    show("lobby");
+  });
 
   // ============ TIC TAC TOE ============
   socket.on("ttt:state", (d) => {
@@ -1553,11 +1643,16 @@
     return span;
   }
 
-  // Builds a little walking sheep for the race track: the player's selfie
-  // (or a colored initial, same fallback as makeAvatarEl) sits on the
-  // sheep's head as its face, so each racer is instantly recognisable while
-  // still reading as "a sheep" moving down the lane. Legs are separate SVG
-  // groups so CSS can step them while `.race-runner.walking` is applied.
+  // Builds a walking sheep for the race track. The proportions are
+  // deliberately chibi: the head is the biggest thing on the sheep so the
+  // player's selfie (or a colored initial, same fallback as makeAvatarEl)
+  // reads clearly at lane size, with a compact wool body and stubby legs
+  // behind it. Legs, tail and ears are separate SVG groups so CSS can drive
+  // the gallop while `.race-runner.walking` is applied.
+  //
+  // The 100x84 viewBox is mapped to `.race-runner`'s box in the stylesheet;
+  // the face is 56 units across, so it stays 56% of the sheep's width at
+  // whatever size the lane renders.
   let sheepClipSeq = 0;
   function sheepEl(id, name) {
     const src = avatarOf(id);
@@ -1565,37 +1660,43 @@
     const face = src
       ? '<clipPath id="' +
         clipId +
-        '"><circle cx="81" cy="29" r="9"/></clipPath>' +
+        '"><circle cx="66" cy="36" r="28"/></clipPath>' +
         '<image href="' +
         src +
-        '" x="72" y="20" width="18" height="18" clip-path="url(#' +
+        '" x="38" y="8" width="56" height="56" clip-path="url(#' +
         clipId +
         ')" preserveAspectRatio="xMidYMid slice"></image>'
-      : '<circle cx="81" cy="29" r="9" fill="#5b4cff"></circle>' +
-        '<text x="81" y="33" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">' +
+      : '<circle cx="66" cy="36" r="28" fill="#5b4cff"></circle>' +
+        '<text x="66" y="48" text-anchor="middle" font-size="32" font-weight="700" fill="#fff">' +
         ((name || "?").trim().charAt(0).toUpperCase() || "?") +
         "</text>";
 
     const wrap = document.createElement("div");
     wrap.className = "sheep-wrap";
     wrap.innerHTML =
-      '<svg class="sheep-svg" viewBox="0 0 100 60">' +
+      '<svg class="sheep-svg" viewBox="0 0 100 84">' +
       '<g class="sheep-legs">' +
-      '<g class="leg leg-b" style="transform-origin:36px 46px"><rect x="32.5" y="46" width="7" height="14" rx="3"></rect></g>' +
-      '<g class="leg leg-a" style="transform-origin:52px 46px"><rect x="48.5" y="46" width="7" height="14" rx="3"></rect></g>' +
-      '<g class="leg leg-b" style="transform-origin:66px 47px"><rect x="62.5" y="47" width="7" height="14" rx="3"></rect></g>' +
-      '<g class="leg leg-a" style="transform-origin:80px 47px"><rect x="76.5" y="47" width="7" height="14" rx="3"></rect></g>' +
+      '<g class="leg leg-b" style="transform-origin:15px 59px"><rect x="11" y="58" width="8" height="22" rx="4"></rect></g>' +
+      '<g class="leg leg-a" style="transform-origin:26px 59px"><rect x="22" y="58" width="8" height="22" rx="4"></rect></g>' +
+      '<g class="leg leg-b" style="transform-origin:38px 60px"><rect x="34" y="59" width="8" height="21" rx="4"></rect></g>' +
+      '<g class="leg leg-a" style="transform-origin:49px 60px"><rect x="45" y="59" width="8" height="21" rx="4"></rect></g>' +
       "</g>" +
       '<g class="sheep-body">' +
-      '<ellipse cx="45" cy="32" rx="34" ry="20" class="sheep-wool"></ellipse>' +
-      '<circle cx="24" cy="22" r="10" class="sheep-wool"></circle>' +
-      '<circle cx="36" cy="16" r="12" class="sheep-wool"></circle>' +
-      '<circle cx="50" cy="14" r="12" class="sheep-wool"></circle>' +
-      '<circle cx="63" cy="17" r="11" class="sheep-wool"></circle>' +
-      '<circle cx="72" cy="23" r="9" class="sheep-wool"></circle>' +
-      '<path d="M74 18 q-6 -8 2 -13 q6 3 2 10 z" class="sheep-horn"></path>' +
-      '<path d="M88 18 q6 -8 -2 -13 q-6 3 -2 10 z" class="sheep-horn"></path>' +
-      '<ellipse cx="81" cy="29" rx="14" ry="12" class="sheep-head" transform="rotate(6 81 29)"></ellipse>' +
+      '<g class="sheep-tail" style="transform-origin:12px 45px">' +
+      '<circle cx="3" cy="37" r="7" class="sheep-wool"></circle>' +
+      "</g>" +
+      '<ellipse cx="27" cy="52" rx="26" ry="17" class="sheep-wool"></ellipse>' +
+      '<circle cx="8" cy="43" r="10" class="sheep-wool"></circle>' +
+      '<circle cx="19" cy="35" r="12" class="sheep-wool"></circle>' +
+      '<circle cx="32" cy="33" r="12" class="sheep-wool"></circle>' +
+      '<circle cx="44" cy="38" r="11" class="sheep-wool"></circle>' +
+      // Ears carry no transform attribute: their tilt lives in CSS so the
+      // flop animation and the resting angle share one reference frame.
+      '<ellipse cx="40" cy="17" rx="9" ry="5.5" class="sheep-ear"></ellipse>' +
+      '<ellipse cx="92" cy="19" rx="9" ry="5.5" class="sheep-ear sheep-ear-r"></ellipse>' +
+      '<path d="M50 18 q-11 -12 2 -17 q11 4 2 13 z" class="sheep-horn"></path>' +
+      '<path d="M82 18 q11 -12 -2 -17 q-11 4 -2 13 z" class="sheep-horn"></path>' +
+      '<circle cx="66" cy="36" r="31" class="sheep-head"></circle>' +
       face +
       "</g>" +
       "</svg>";
@@ -1618,6 +1719,16 @@
     return (p && p.name) || "You";
   }
 
+  // Sets `el`'s classes to `base` plus an optional one-shot animation class,
+  // forcing a reflow in between so the animation replays even when the same
+  // class was already applied on the previous update (two scores in a row).
+  function restartOneShot(el, base, oneShot) {
+    el.className = base;
+    if (!oneShot) return;
+    void el.offsetWidth;
+    el.className = base + " " + oneShot;
+  }
+
   // Renders a race-track leaderboard: one lane per player, sorted by `pct`
   // (progress toward the finish line, 0-100) descending, with their avatar
   // riding along the lane. `entries`: [{ id, name, pct, label, isMe, badge }]
@@ -1629,39 +1740,59 @@
   // sliding from its last position to its new one rather than snapping.
   // Reordering (rank changes) is animated separately with a FLIP transform,
   // since reflow alone gives DOM moves no transition to animate.
-  function renderRace(ul, entries) {
+  //
+  // `opts.fixedOrder` keeps the lanes in the order given instead of sorting
+  // them by progress: rank labels still update, but nobody swaps rows. That
+  // is what the session replay uses, so an overtake reads as one sheep
+  // running past another down its own lane, the way a real race looks.
+  function renderRace(ul, entries, opts) {
+    const fixed = !!(opts && opts.fixedOrder);
     ul.classList.add("race-track");
     const lanes = ul._raceLanes || (ul._raceLanes = new Map());
     const sorted = entries.slice().sort((a, b) => b.pct - a.pct);
+    // Rank is always by progress, even when the rows stay put.
+    const rankOf = new Map();
+    sorted.forEach((e, i) => rankOf.set(e.id, i));
+    const order = fixed ? entries : sorted;
 
     // FLIP step 1 ("First"): remember where every existing lane sits now.
     const firstTops = new Map();
-    lanes.forEach((li, id) => firstTops.set(id, li.getBoundingClientRect().top));
+    if (!fixed) lanes.forEach((li, id) => firstTops.set(id, li.getBoundingClientRect().top));
 
     const seen = new Set();
-    sorted.forEach((e, i) => {
+    order.forEach((e) => {
+      const i = rankOf.get(e.id);
       const pct = Math.max(0, Math.min(100, e.pct));
       let li = lanes.get(e.id);
       if (!li) {
         li = document.createElement("li");
         li.innerHTML =
-          '<div class="race-head"><span class="race-rank"></span><span class="race-name"></span><span class="race-label"></span></div>' +
-          '<div class="race-path"><div class="race-fill"></div><div class="race-runner"></div><span class="race-flag">🏁</span></div>';
+          '<div class="race-head"><span class="race-rank"></span><span class="race-name"></span>' +
+          '<span class="race-gain"></span><span class="race-label"></span></div>' +
+          '<div class="race-path"><div class="race-fill"></div><div class="race-dust"></div>' +
+          '<div class="race-runner"></div><span class="race-flag">🏁</span></div>';
         lanes.set(e.id, li);
       }
       li.className = "race-lane" + (e.isMe ? " me" : "") + (e.badge === "winner" ? " winner" : "");
-      li.querySelector(".race-rank").textContent = "#" + (i + 1);
+      li.querySelector(".race-rank").textContent = i === 0 ? "🥇" : "#" + (i + 1);
       li.querySelector(".race-name").textContent = e.name + (e.isMe ? " (you)" : "");
       li.querySelector(".race-label").textContent = e.label;
       li.querySelector(".race-fill").style.width = pct + "%";
+      const gain = li.querySelector(".race-gain");
+      gain.textContent = e.gain || "";
+      restartOneShot(gain, "race-gain", e.gain ? "show" : null);
       const runner = li.querySelector(".race-runner");
-      // Legs only step while the lane hasn't finished (no badge yet); once
+      // Legs only gallop while the lane hasn't finished (no badge yet); once
       // solved/won/failed it plants its feet (or cheers, per the CSS above).
-      runner.className = "race-runner" + (e.badge ? " " + e.badge : " walking");
+      // `pop` is a one-off leap, used when a lane gains ground on this update.
+      restartOneShot(runner, "race-runner" + (e.badge ? " " + e.badge : " walking"), e.pop ? "pop" : null);
       runner.style.left = pct + "%";
+      const dust = li.querySelector(".race-dust");
+      dust.style.left = pct + "%";
+      restartOneShot(dust, "race-dust", e.pop ? "kick" : null);
       if (!runner.firstChild) runner.append(sheepEl(e.id, e.name));
 
-      ul.append(li); // moves existing lanes too, so DOM order tracks rank
+      ul.append(li); // moves existing lanes too, so DOM order tracks `order`
       seen.add(e.id);
     });
 
@@ -1675,7 +1806,9 @@
 
     // FLIP steps 2-4 ("Last, Invert, Play"): snap each lane back to where it
     // used to be with a transform, then release it so the browser animates
-    // to the real (new) position.
+    // to the real (new) position. Skipped entirely for fixed-order boards,
+    // where no lane ever changes row.
+    if (fixed) return;
     lanes.forEach((li, id) => {
       const from = firstTops.get(id);
       if (from == null) return; // just-added lane: nothing to animate from
@@ -1683,10 +1816,15 @@
       if (!dy) return;
       li.style.transition = "none";
       li.style.transform = "translateY(" + dy + "px)";
+      // `flipping` lifts the lane onto its own opaque layer for the crossing,
+      // so a sheep passing another occludes it instead of blending into it.
+      li.classList.add("flipping");
       requestAnimationFrame(() => {
         li.style.transition = "transform 0.5s ease";
         li.style.transform = "";
       });
+      clearTimeout(li._flipTimer);
+      li._flipTimer = setTimeout(() => li.classList.remove("flipping"), 520);
     });
   }
 

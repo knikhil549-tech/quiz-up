@@ -181,6 +181,9 @@ function startQuiz(room, cats) {
     endsAt: 0,
     answers: new Map(),
     timer: null,
+    // One frame per revealed question (see revealAnswer), replayed as a race
+    // on every client just before the final results.
+    timeline: [],
   };
   io.to(room.code).emit('gameStarted', {
     total: questions.length,
@@ -242,6 +245,19 @@ function revealAnswer(room) {
     };
   });
 
+  // Snapshot standings after this question so the end-of-game replay can
+  // re-run the whole session lane by lane.
+  g.timeline.push({
+    index: g.qIndex,
+    question: q.q,
+    board: room.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      score: p.score,
+      gained: results[p.id] ? results[p.id].gained : 0,
+    })),
+  });
+
   io.to(room.code).emit('reveal', {
     index: g.qIndex,
     correct: q.correct,
@@ -273,6 +289,10 @@ function endQuiz(room) {
     scoreboard: board,
     winnerIds: winners,
     tie: winners.length > 1,
+    // Question-by-question standings, so the client can run the session back
+    // as a race before revealing the winner.
+    replay: (g && g.timeline) || [],
+    maxScore: g ? g.questions.length * POINTS_PER_CORRECT : 0,
   });
   room.game = null;
 }

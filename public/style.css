@@ -938,23 +938,32 @@ h2 {
   padding: 0;
 }
 .race-lane {
-  padding: 14px 4px 20px;
+  padding: 14px 4px 12px;
   border-bottom: 1px solid var(--line);
 }
 .race-lane:last-child {
   border-bottom: none;
 }
+/* Only while a lane is animating to a new rank (see renderRace). Declared
+   before `.winner` so the winner lane keeps its own tint. */
+.race-lane.flipping {
+  position: relative;
+  z-index: 2;
+  background: #fff;
+  border-radius: 12px;
+}
 .race-lane.winner {
   background: #eeecff;
   border-radius: 12px;
   border-bottom: none;
-  padding: 14px 10px 20px;
+  padding: 14px 10px 12px;
 }
 .race-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  /* Leaves room for the sheep, which stands ~62px above its lane. */
+  margin-bottom: 62px;
   font-size: 14px;
 }
 .race-rank {
@@ -982,13 +991,53 @@ h2 {
 .race-lane.winner .race-label {
   color: var(--accent);
 }
+.race-gain {
+  flex: none;
+  font-weight: 800;
+  font-size: 12px;
+  color: var(--ok);
+  background: #e6f7ec;
+  border-radius: 999px;
+  padding: 1px 7px;
+  opacity: 0;
+  transform: translateY(4px);
+}
+.race-gain.show {
+  animation: gain-pop 0.9s ease-out 1;
+}
+@keyframes gain-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.15);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(1);
+  }
+}
+
 .race-path {
   position: relative;
-  height: 8px;
-  margin: 0 27px;
+  height: 10px;
+  /* Wide enough that a sheep parked at 0% or 100% still fits the card. */
+  margin: 0 46px;
   background: var(--bg);
   border-radius: 999px;
   border: 1px solid var(--line);
+  /* Dashed lane markings, so the sheep read as running on a track. */
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(28, 27, 46, 0.09) 0 8px,
+    transparent 8px 18px
+  );
 }
 .race-fill {
   position: absolute;
@@ -996,23 +1045,81 @@ h2 {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #b9b3ff, var(--accent));
-  transition: width 0.5s ease;
+  transition: width 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
+/* Sized to the sheep's 100x84 viewBox. The -90% lift stands the sheep ON the
+   lane (feet just inside the bar) instead of straddling it, which keeps the
+   big head clear of the bar and of the name row above. */
 .race-runner {
   position: absolute;
   top: 50%;
   left: 0%;
-  width: 48px;
-  height: 30px;
-  transform: translate(-50%, -50%);
-  transition: left 0.5s ease;
+  width: 84px;
+  height: 71px;
+  transform: translate(-50%, -90%);
+  transition: left 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 .race-flag {
   position: absolute;
-  right: -24px;
+  right: -26px;
   top: 50%;
-  transform: translateY(-50%);
-  font-size: 15px;
+  transform-origin: 20% 80%;
+  font-size: 16px;
+  animation: flag-wave 1.8s ease-in-out infinite;
+}
+@keyframes flag-wave {
+  0%,
+  100% {
+    transform: translateY(-50%) rotate(-7deg);
+  }
+  50% {
+    transform: translateY(-50%) rotate(7deg);
+  }
+}
+
+/* Puffs of dust kicked up behind a sheep that just gained ground. */
+.race-dust {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 0;
+  height: 0;
+  transition: left 0.6s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.race-dust::before,
+.race-dust::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  border-radius: 50%;
+  background: rgba(28, 27, 46, 0.16);
+  opacity: 0;
+}
+.race-dust::before {
+  left: -46px;
+  width: 11px;
+  height: 11px;
+}
+.race-dust::after {
+  left: -60px;
+  width: 7px;
+  height: 7px;
+}
+.race-dust.kick::before {
+  animation: dust-puff 0.7s ease-out 1;
+}
+.race-dust.kick::after {
+  animation: dust-puff 0.7s ease-out 0.08s 1;
+}
+@keyframes dust-puff {
+  0% {
+    opacity: 0.65;
+    transform: translate(0, 0) scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-14px, -9px) scale(1.5);
+  }
 }
 
 /* The sheep racer: a fluffy SVG body with a player's face on its head and
@@ -1044,41 +1151,135 @@ h2 {
   fill: #2a242c;
 }
 
+/* Gallop cycle: legs swing in opposing pairs, the body springs on a
+   two-beat bounce, the whole sheep leans into the run, and the tail and
+   ears flap a little out of step so the loop never looks mechanical. */
 @keyframes sheep-step-a {
   0%,
   100% {
-    transform: rotate(-18deg);
+    transform: rotate(-26deg);
   }
   50% {
-    transform: rotate(18deg);
+    transform: rotate(26deg);
   }
 }
 @keyframes sheep-step-b {
   0%,
   100% {
-    transform: rotate(18deg);
+    transform: rotate(26deg);
   }
   50% {
-    transform: rotate(-18deg);
+    transform: rotate(-26deg);
   }
 }
-@keyframes sheep-bob {
+@keyframes sheep-bound {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translateY(0) scaleY(1);
+  }
+  30% {
+    transform: translateY(-5px) scaleY(1.04);
+  }
+  60% {
+    transform: translateY(0) scaleY(0.97);
+  }
+  80% {
+    transform: translateY(-2px) scaleY(1.01);
+  }
+}
+@keyframes sheep-lean {
+  0%,
+  100% {
+    transform: rotate(-2.5deg);
   }
   50% {
-    transform: translateY(-1.5px);
+    transform: rotate(1.5deg);
+  }
+}
+@keyframes sheep-tail-wag {
+  0%,
+  100% {
+    transform: rotate(-22deg);
+  }
+  50% {
+    transform: rotate(20deg);
+  }
+}
+/* The CSS `transform` property overrides the SVG transform attribute, so each
+   ear's own rotation has to be carried inside its keyframes. */
+@keyframes sheep-ear-flop {
+  0%,
+  100% {
+    transform: rotate(-32deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-32deg) translateY(-2.2px);
+  }
+}
+@keyframes sheep-ear-flop-r {
+  0%,
+  100% {
+    transform: rotate(32deg) translateY(0);
+  }
+  50% {
+    transform: rotate(32deg) translateY(-2.2px);
   }
 }
 .race-runner.walking .leg-a {
-  animation: sheep-step-a 0.5s ease-in-out infinite;
+  animation: sheep-step-a 0.42s ease-in-out infinite;
 }
 .race-runner.walking .leg-b {
-  animation: sheep-step-b 0.5s ease-in-out infinite;
+  animation: sheep-step-b 0.42s ease-in-out infinite;
 }
 .race-runner.walking .sheep-body {
-  animation: sheep-bob 0.5s ease-in-out infinite;
+  animation: sheep-bound 0.42s ease-in-out infinite;
+}
+.race-runner.walking .sheep-svg {
+  animation: sheep-lean 0.84s ease-in-out infinite;
+}
+.race-runner.walking .sheep-tail {
+  animation: sheep-tail-wag 0.3s ease-in-out infinite;
+}
+.race-runner.walking .sheep-ear {
+  animation: sheep-ear-flop 0.36s ease-in-out infinite;
+}
+.race-runner.walking .sheep-ear-r {
+  animation-name: sheep-ear-flop-r;
+}
+.sheep-ear {
+  fill: #efd2b2;
+  stroke: #cfa982;
+  stroke-width: 0.6;
+  /* Tilt lives here rather than on a transform attribute, so the resting
+     angle and the flop keyframes share the same reference frame. */
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-32deg);
+}
+.sheep-ear-r {
+  transform: rotate(32deg);
+}
+
+/* One-off leap, played on the lane of whoever just scored. */
+@keyframes sheep-leap {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  30% {
+    transform: translateY(-18px) rotate(-9deg) scale(1.08);
+  }
+  60% {
+    transform: translateY(1px) rotate(3deg) scale(0.96);
+  }
+  80% {
+    transform: translateY(-6px) rotate(-2deg) scale(1.02);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+}
+.race-runner.pop .sheep-wrap {
+  animation: sheep-leap 0.7s cubic-bezier(0.3, 1.4, 0.5, 1) 1;
 }
 
 @keyframes sheep-cheer {
@@ -1086,27 +1287,118 @@ h2 {
   100% {
     transform: translateY(0) rotate(0deg);
   }
-  25% {
-    transform: translateY(-5px) rotate(-6deg);
+  20% {
+    transform: translateY(-9px) rotate(-9deg);
   }
-  55% {
-    transform: translateY(0) rotate(4deg);
+  45% {
+    transform: translateY(0) rotate(6deg);
   }
-  75% {
-    transform: translateY(-2px) rotate(-2deg);
+  65% {
+    transform: translateY(-5px) rotate(-4deg);
+  }
+  85% {
+    transform: translateY(0) rotate(2deg);
   }
 }
 .race-runner.solved .sheep-svg {
-  animation: sheep-cheer 0.8s ease-in-out 1;
+  animation: sheep-cheer 0.9s ease-in-out 1;
   filter: drop-shadow(0 1px 2px rgba(28, 27, 46, 0.3)) drop-shadow(0 0 3px var(--ok));
 }
 .race-lane.winner .race-runner .sheep-svg {
-  animation: sheep-cheer 0.8s ease-in-out 1;
-  filter: drop-shadow(0 1px 2px rgba(28, 27, 46, 0.3)) drop-shadow(0 0 4px #ffb300);
+  animation: sheep-cheer 0.9s ease-in-out 2;
+  filter: drop-shadow(0 1px 2px rgba(28, 27, 46, 0.3)) drop-shadow(0 0 5px #ffb300);
+}
+/* A little gold sparkle over the leader's sheep. */
+.race-lane.winner .race-runner::after {
+  content: "✨";
+  position: absolute;
+  top: -6px;
+  right: 2px;
+  font-size: 16px;
+  animation: sparkle 1.4s ease-in-out infinite;
+}
+@keyframes sparkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85) rotate(-8deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(8deg);
+  }
 }
 .race-runner.failed .sheep-svg {
   opacity: 0.55;
   animation: none;
+}
+.race-runner.failed .sheep-tail,
+.race-runner.failed .sheep-ear {
+  animation: none;
+}
+
+/* Respect a reduced-motion preference: keep the sheep, drop the jiggle. */
+@media (prefers-reduced-motion: reduce) {
+  .race-runner.walking .leg-a,
+  .race-runner.walking .leg-b,
+  .race-runner.walking .sheep-body,
+  .race-runner.walking .sheep-svg,
+  .race-runner.walking .sheep-tail,
+  .race-runner.walking .sheep-ear,
+  .race-runner.pop .sheep-wrap,
+  .race-flag,
+  .race-lane.winner .race-runner::after {
+    animation: none;
+  }
+}
+
+/* ===== Quiz: session replay (the whole round re-run as a race) ===== */
+.replay-card {
+  padding-top: 22px;
+  padding-bottom: 22px;
+}
+.replay-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.replay-step {
+  flex: none;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.replay-q {
+  flex: 1;
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.replay-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.replay-bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+/* While the round is being replayed each move takes nearly the whole step, so
+   the sheep read as running the race rather than teleporting between marks. */
+#replay-board.replaying .race-runner,
+#replay-board.replaying .race-dust,
+#replay-board.replaying .race-fill {
+  transition-duration: 0.9s;
+  transition-timing-function: cubic-bezier(0.4, 0.02, 0.5, 1);
 }
 
 /* Confetti overlay (shown briefly on a correct answer) */
