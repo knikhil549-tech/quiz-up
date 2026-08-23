@@ -1553,6 +1553,63 @@
     return span;
   }
 
+  // Builds a little walking sheep for the race track: the player's selfie
+  // (or a colored initial, same fallback as makeAvatarEl) sits on the
+  // sheep's head as its face, so each racer is instantly recognisable while
+  // still reading as "a sheep" moving down the lane. Legs are separate SVG
+  // groups so CSS can step them while `.race-runner.walking` is applied.
+  let sheepClipSeq = 0;
+  function sheepEl(id, name) {
+    const src = avatarOf(id);
+    const clipId = "sheep-face-" + (sheepClipSeq++) + "-" + Math.abs(hashCode(id));
+    const face = src
+      ? '<clipPath id="' +
+        clipId +
+        '"><circle cx="81" cy="29" r="9"/></clipPath>' +
+        '<image href="' +
+        src +
+        '" x="72" y="20" width="18" height="18" clip-path="url(#' +
+        clipId +
+        ')" preserveAspectRatio="xMidYMid slice"></image>'
+      : '<circle cx="81" cy="29" r="9" fill="#5b4cff"></circle>' +
+        '<text x="81" y="33" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">' +
+        ((name || "?").trim().charAt(0).toUpperCase() || "?") +
+        "</text>";
+
+    const wrap = document.createElement("div");
+    wrap.className = "sheep-wrap";
+    wrap.innerHTML =
+      '<svg class="sheep-svg" viewBox="0 0 100 60">' +
+      '<g class="sheep-legs">' +
+      '<g class="leg leg-b" style="transform-origin:36px 46px"><rect x="32.5" y="46" width="7" height="14" rx="3"></rect></g>' +
+      '<g class="leg leg-a" style="transform-origin:52px 46px"><rect x="48.5" y="46" width="7" height="14" rx="3"></rect></g>' +
+      '<g class="leg leg-b" style="transform-origin:66px 47px"><rect x="62.5" y="47" width="7" height="14" rx="3"></rect></g>' +
+      '<g class="leg leg-a" style="transform-origin:80px 47px"><rect x="76.5" y="47" width="7" height="14" rx="3"></rect></g>' +
+      "</g>" +
+      '<g class="sheep-body">' +
+      '<ellipse cx="45" cy="32" rx="34" ry="20" class="sheep-wool"></ellipse>' +
+      '<circle cx="24" cy="22" r="10" class="sheep-wool"></circle>' +
+      '<circle cx="36" cy="16" r="12" class="sheep-wool"></circle>' +
+      '<circle cx="50" cy="14" r="12" class="sheep-wool"></circle>' +
+      '<circle cx="63" cy="17" r="11" class="sheep-wool"></circle>' +
+      '<circle cx="72" cy="23" r="9" class="sheep-wool"></circle>' +
+      '<path d="M74 18 q-6 -8 2 -13 q6 3 2 10 z" class="sheep-horn"></path>' +
+      '<path d="M88 18 q6 -8 -2 -13 q-6 3 -2 10 z" class="sheep-horn"></path>' +
+      '<ellipse cx="81" cy="29" rx="14" ry="12" class="sheep-head" transform="rotate(6 81 29)"></ellipse>' +
+      face +
+      "</g>" +
+      "</svg>";
+    return wrap;
+  }
+
+  // Tiny string hash, just to keep clip-path ids unique per player without
+  // leaking or depending on the shape of socket ids.
+  function hashCode(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+    return h;
+  }
+
   // Looks up the current player's own name from the lobby roster (server
   // state payloads carry opponents' names but not always "me"'s).
   function myName() {
@@ -1598,9 +1655,11 @@
       li.querySelector(".race-label").textContent = e.label;
       li.querySelector(".race-fill").style.width = pct + "%";
       const runner = li.querySelector(".race-runner");
-      runner.className = "race-runner" + (e.badge ? " " + e.badge : "");
+      // Legs only step while the lane hasn't finished (no badge yet); once
+      // solved/won/failed it plants its feet (or cheers, per the CSS above).
+      runner.className = "race-runner" + (e.badge ? " " + e.badge : " walking");
       runner.style.left = pct + "%";
-      if (!runner.firstChild) runner.append(makeAvatarEl(e.id, e.name));
+      if (!runner.firstChild) runner.append(sheepEl(e.id, e.name));
 
       ul.append(li); // moves existing lanes too, so DOM order tracks rank
       seen.add(e.id);

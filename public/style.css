@@ -938,7 +938,7 @@ h2 {
   padding: 0;
 }
 .race-lane {
-  padding: 10px 4px;
+  padding: 14px 4px 20px;
   border-bottom: 1px solid var(--line);
 }
 .race-lane:last-child {
@@ -948,7 +948,7 @@ h2 {
   background: #eeecff;
   border-radius: 12px;
   border-bottom: none;
-  padding: 10px 10px;
+  padding: 14px 10px 20px;
 }
 .race-head {
   display: flex;
@@ -985,7 +985,7 @@ h2 {
 .race-path {
   position: relative;
   height: 8px;
-  margin: 0 16px;
+  margin: 0 27px;
   background: var(--bg);
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -1002,34 +1002,111 @@ h2 {
   position: absolute;
   top: 50%;
   left: 0%;
+  width: 48px;
+  height: 30px;
   transform: translate(-50%, -50%);
   transition: left 0.5s ease;
 }
-.race-runner .p-avatar,
-.race-runner .p-avatar-fallback {
-  width: 26px;
-  height: 26px;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(28, 27, 46, 0.25);
-}
-.race-runner.solved .p-avatar,
-.race-runner.solved .p-avatar-fallback {
-  box-shadow: 0 0 0 2px var(--ok), 0 1px 3px rgba(28, 27, 46, 0.25);
-}
-.race-lane.winner .race-runner .p-avatar,
-.race-lane.winner .race-runner .p-avatar-fallback {
-  box-shadow: 0 0 0 2px #ffb300, 0 1px 3px rgba(28, 27, 46, 0.25);
-}
-.race-runner.failed .p-avatar,
-.race-runner.failed .p-avatar-fallback {
-  opacity: 0.5;
-}
 .race-flag {
   position: absolute;
-  right: -18px;
+  right: -24px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 14px;
+  font-size: 15px;
+}
+
+/* The sheep racer: a fluffy SVG body with a player's face on its head and
+   legs that step in place while its lane is still in progress. Horizontal
+   movement along the track comes from `.race-runner`'s own transition
+   (above); this is the "in place" walk-cycle layered on top of it. */
+.sheep-wrap,
+.sheep-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.sheep-svg {
+  filter: drop-shadow(0 1px 2px rgba(28, 27, 46, 0.3));
+}
+.sheep-wool {
+  fill: #f4dcc2;
+}
+.sheep-head {
+  fill: #2a242c;
+}
+.sheep-horn {
+  fill: #dc9a4c;
+  stroke: #b97427;
+  stroke-width: 0.6;
+}
+.leg rect {
+  fill: #2a242c;
+}
+
+@keyframes sheep-step-a {
+  0%,
+  100% {
+    transform: rotate(-18deg);
+  }
+  50% {
+    transform: rotate(18deg);
+  }
+}
+@keyframes sheep-step-b {
+  0%,
+  100% {
+    transform: rotate(18deg);
+  }
+  50% {
+    transform: rotate(-18deg);
+  }
+}
+@keyframes sheep-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px);
+  }
+}
+.race-runner.walking .leg-a {
+  animation: sheep-step-a 0.5s ease-in-out infinite;
+}
+.race-runner.walking .leg-b {
+  animation: sheep-step-b 0.5s ease-in-out infinite;
+}
+.race-runner.walking .sheep-body {
+  animation: sheep-bob 0.5s ease-in-out infinite;
+}
+
+@keyframes sheep-cheer {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-5px) rotate(-6deg);
+  }
+  55% {
+    transform: translateY(0) rotate(4deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(-2deg);
+  }
+}
+.race-runner.solved .sheep-svg {
+  animation: sheep-cheer 0.8s ease-in-out 1;
+  filter: drop-shadow(0 1px 2px rgba(28, 27, 46, 0.3)) drop-shadow(0 0 3px var(--ok));
+}
+.race-lane.winner .race-runner .sheep-svg {
+  animation: sheep-cheer 0.8s ease-in-out 1;
+  filter: drop-shadow(0 1px 2px rgba(28, 27, 46, 0.3)) drop-shadow(0 0 4px #ffb300);
+}
+.race-runner.failed .sheep-svg {
+  opacity: 0.55;
+  animation: none;
 }
 
 /* Confetti overlay (shown briefly on a correct answer) */
